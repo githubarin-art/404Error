@@ -1,131 +1,441 @@
-# RunAnywhere SDK - Simple Chat App
+# Guardian AI - Personal Safety App
 
-A simple Android chat application demonstrating the RunAnywhere SDK for on-device AI inference.
+**An AI-Powered Personal Safety Application Using RunAnywhere SDK**
 
-## What This App Does
+> **Discreet emergency assistance through intelligent threat assessment and automated contact
+alerting - completely on-device for maximum privacy.**
 
-This is a minimal example showing how to:
+---
 
-1. Initialize the RunAnywhere SDK
-2. Download AI models (LLMs)
-3. Load models into memory
-4. Run text generation with streaming responses
+## **What This App Does**
 
-## Features
+Guardian AI is a personal safety application that uses **on-device AI** to:
 
-- **Model Management**: Download and load AI models directly in the app
-- **Real-time Streaming**: See AI responses generate word-by-word
-- **Simple UI**: Clean Jetpack Compose interface
-- **On-Device AI**: All inference runs locally on your Android device
+1. **Assess Emergency Threats**: AI generates protocol questions to determine severity
+2. **Smart Contact Alerting**: Automatically decides who to contact based on threat level
+3. **Progressive Escalation**: Monitors situations and escalates if needed
+4. **Complete Privacy**: All AI processing happens locally using RunAnywhere SDK
 
-## Quick Start
+### How It Works
 
-### 1. Build and Run
+```
+User triggers alarm (discreet button)
+         ↓
+AI generates safety question ("Can you safely move to a public area?")
+         ↓
+30-second timer for response
+         ↓
+┌────────────────────────────┐
+│   Can user answer quickly? │
+├────────────────┬───────────┤
+│      YES       │    NO      │
+↓                ↓
+MEDIUM threat    HIGH threat
+SMS to family    Calls + location + emergency services
+```
+
+## **Key Features**
+
+### **AI-Powered Decision Making**
+
+- **Protocol Questions**: AI generates contextual safety questions
+- **Threat Assessment**: Analyzes response time and ability to answer
+- **Smart Escalation**: Automatically escalates based on time and responses
+- **Action Selection**: AI decides who to contact and how (SMS, call, emergency services)
+
+### **Privacy-First Architecture**
+
+- **100% On-Device AI**: Uses RunAnywhere SDK with llama.cpp
+- **No Cloud Processing**: All decisions made locally
+- **No Data Collection**: Emergency contacts stored locally only
+- **Location Privacy**: GPS only shared when emergency active
+
+### **Emergency Response System**
+
+- **5 Threat Levels**: UNKNOWN → LOW → MEDIUM → HIGH → CRITICAL
+- **Automated Alerts**: SMS, calls, missed calls, emergency services
+- **Location Sharing**: Automatic GPS coordinates in emergency messages
+- **False Alarm Protection**: Easy cancellation with notifications
+
+### **User-Friendly Interface**
+
+- **Discreet Activation**: Single button trigger (future: shake, voice, volume buttons)
+- **Real-Time Countdown**: Visual timer for protocol questions
+- **Status Monitoring**: Color-coded threat level indicators
+- **Contact Management**: Priority-based emergency contacts
+
+---
+
+## **Project Structure**
+
+```
+app/src/main/java/com/runanywhere/startup_hackathon20/
+│
+├── MyApplication.kt              # SDK initialization, model registration
+│
+├── SafetyModels.kt               # Data models (contacts, threats, sessions)
+├── SafetyAIEngine.kt             # AI decision engine (RunAnywhere SDK)
+├── SafetyViewModel.kt            # Complete business logic
+│
+├── MainActivity.kt               # Safety UI implementation
+│
+├── [TO ADD] CommunicationManager.kt  # SMS, calls, emergency dialer
+├── [TO ADD] LocationManager.kt       # GPS tracking, location services
+├── [TO ADD] ContactsScreen.kt        # Manage emergency contacts
+└── [TO ADD] SettingsScreen.kt        # Model management, permissions
+```
+
+### **What's Already Implemented**
+
+1. **SafetyModels.kt** (103 lines)
+    - `EmergencyContact`, `ThreatLevel`, `ProtocolQuestion`
+    - `EmergencySession`, `AlertRecord`, `EmergencyAction`
+
+2. **SafetyAIEngine.kt** (389 lines)
+    - Protocol question generation
+    - Threat level assessment
+    - AI decision making with RunAnywhere SDK
+    - Emergency message generation
+    - Escalation logic
+
+3. **SafetyViewModel.kt** (599 lines)
+    - Complete emergency workflow
+    - Protocol question presentation
+    - Response handling (YES/NO/timeout)
+    - Action execution orchestration
+    - Escalation monitoring
+    - False alarm cancellation
+
+### **What Needs Implementation**
+
+See **[BUILD_SAFETY_APP.md](BUILD_SAFETY_APP.md)** for step-by-step guide.
+
+Priority 1 (Week 1):
+
+- Communication layer (SMS, calls)
+- Location services integration
+- Safety UI implementation
+- Runtime permissions
+
+Priority 2 (Week 2):
+
+- Contacts management screen
+- Settings screen
+- Alert history
+
+Priority 3 (Week 3+):
+
+- Foreground service
+- Advanced features (shake-to-activate, disguise mode, voice commands)
+
+---
+
+## **Quick Start**
+
+### Prerequisites
+
+- Android Studio (latest stable)
+- JDK 17+
+- Android device/emulator (API 24+, 2GB+ RAM)
+
+### Step 1: Clone & Open
 
 ```bash
-./gradlew assembleDebug
-# Or open in Android Studio and click Run
+git clone <your-repo-url>
+cd Hackss
+# Open in Android Studio
 ```
 
-### 2. Download a Model
+### Step 2: Add Permissions
 
-1. Launch the app
-2. Tap "Models" in the top bar
-3. Choose a model (we recommend starting with "SmolLM2 360M Q8_0" - only 119 MB)
-4. Tap "Download" and wait for it to complete
+Add to `app/src/main/AndroidManifest.xml`:
 
-### 3. Load the Model
-
-1. Once downloaded, tap "Load" on the model
-2. Wait for "Model loaded! Ready to chat." message
-
-### 4. Start Chatting!
-
-1. Type a message in the text field
-2. Tap "Send"
-3. Watch the AI response generate in real-time
-
-## Available Models
-
-The app comes pre-configured with two models:
-
-| Model | Size | Quality | Best For |
-|-------|------|---------|----------|
-| SmolLM2 360M Q8_0 | 119 MB | Basic | Testing, quick responses |
-| Qwen 2.5 0.5B Instruct Q6_K | 374 MB | Better | General conversations |
-
-## Technical Details
-
-### SDK Components Used
-
-- **RunAnywhere Core SDK**: Component architecture and model management
-- **LlamaCpp Module**: Optimized llama.cpp inference engine with 7 ARM64 variants
-- **Kotlin Coroutines**: For async operations and streaming
-
-### Architecture
-
-```
-MyApplication (initialization)
-    ↓
-ChatViewModel (state management)
-    ↓
-ChatScreen (UI layer)
+```xml
+<uses-permission android:name="android.permission.SEND_SMS" />
+<uses-permission android:name="android.permission.CALL_PHONE" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 ```
 
-### Key Files
+### Step 3: Add Dependencies
 
-- `MyApplication.kt` - SDK initialization and model registration
-- `ChatViewModel.kt` - Business logic and state management
-- `MainActivity.kt` - UI components and composables
+Add to `app/build.gradle.kts`:
 
-## Requirements
+```kotlin
+dependencies {
+    // ... existing dependencies ...
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+}
+```
 
-- Android 7.0 (API 24) or higher
-- ~200 MB free storage (for smallest model)
-- Internet connection (for downloading models)
+### Step 4: Build Minimal UI
 
-## Troubleshooting
+See **[BUILD_SAFETY_APP.md](BUILD_SAFETY_APP.md)** for complete UI code (just copy/paste!)
 
-### Models not showing up
+### Step 5: Run & Test
 
-- Wait a few seconds for SDK initialization
-- Tap "Refresh" in the Models section
-- Check logcat for initialization errors
+1. Load AI model (tap "Load AI Model" button)
+2. Trigger emergency (tap red button)
+3. Answer protocol question
+4. Check LogCat for AI decisions
 
-### Download fails
+**Expected Logs:**
 
-- Check internet connection
-- Ensure sufficient storage space
-- Verify INTERNET permission in AndroidManifest.xml
+```
+SafetyViewModel: Emergency session started
+SafetyAIEngine: AI generated question: "Can you confirm you are safe right now?"
+SafetyViewModel: Threat level updated: MEDIUM
+SafetyViewModel: SMS to Mom: I've activated my safety app...
+```
 
-### App crashes during generation
+---
 
-- Try the smaller model (SmolLM2 360M)
-- Close other apps to free memory
-- Check that `largeHeap="true"` is set in AndroidManifest.xml
+## **Documentation**
 
-### Generation is slow
+| Document                                                                     | Description                                 |
+|------------------------------------------------------------------------------|---------------------------------------------|
+| **[BUILD_SAFETY_APP.md](BUILD_SAFETY_APP.md)**                               | Quick start guide with ready-to-use UI code |
+| **[SAFETY_APP_IMPLEMENTATION_GUIDE.md](SAFETY_APP_IMPLEMENTATION_GUIDE.md)** | Complete implementation guide (750+ lines)  |
+| **[RUNANYWHERE_SDK_COMPLETE_GUIDE.md](RUNANYWHERE_SDK_COMPLETE_GUIDE.md)**   | Full RunAnywhere SDK documentation          |
 
-- This is normal for on-device inference
-- Smaller models run faster
-- Performance depends on device CPU
+---
 
-## Next Steps
+## **Testing Scenarios**
 
-Want to customize this app? Try:
+### Scenario 1: Low Threat (Quick Response)
+```
+Trigger alarm → Question appears → Answer YES within 5 seconds
+Expected: MEDIUM threat → SMS to primary family contact
+```
 
-1. **Add more models** - Edit `MyApplication.kt` → `registerModels()`
-2. **Customize UI** - Edit `MainActivity.kt` compose functions
-3. **Add system prompts** - Modify message format in `ChatViewModel.kt`
-4. **Persist chat history** - Add Room database or DataStore
-5. **Add model parameters** - Explore temperature, top-k, top-p settings
+### Scenario 2: Medium Threat (Delayed Response)
 
-## Resources
+```
+Trigger alarm → Question appears → Answer YES after 15 seconds
+Expected: MEDIUM threat → Missed calls to top 3 contacts
+```
 
-- [Full Quick Start Guide](app/src/main/java/com/runanywhere/startup_hackathon20/QUICK_START_ANDROID.md)
-- [RunAnywhere SDK Repository](https://github.com/RunanywhereAI/runanywhere-sdks)
-- [SDK Documentation](https://github.com/RunanywhereAI/runanywhere-sdks/blob/main/CLAUDE.md)
+### Scenario 3: High Threat (No Answer)
 
-## License
+```
+Trigger alarm → Question appears → Answer NO or timeout
+Expected: HIGH threat → Calls + location SMS to top contacts
+```
 
-This example app follows the license of the RunAnywhere SDK.
+### Scenario 4: Critical Threat (Escalation)
+
+```
+Trigger alarm → No response → 5 minutes pass
+Expected: CRITICAL threat → Emergency services + all contacts
+```
+
+### Scenario 5: False Alarm
+
+```
+Trigger alarm → Cancel button → Confirm
+Expected: All contacted people receive "False alarm. I'm safe now."
+```
+
+---
+
+## **Privacy & Security**
+
+### On-Device AI Guarantees
+
+All AI decisions processed locally (RunAnywhere SDK with llama.cpp)  
+No cloud API calls for threat assessment or decision making  
+Emergency contacts stored locally (SharedPreferences/Room)  
+Location only shared during active emergency  
+No training data collection - AI model is frozen
+
+### Security Features (Planned)
+
+- PIN/biometric protection for alarm cancellation
+- Disguised app mode (looks like calculator)
+- Auto-wipe data after failed PIN attempts
+- Encrypted emergency session history
+
+---
+
+## **Technical Stack**
+
+### Core Technologies
+
+- **Kotlin** - Modern Android development
+- **Jetpack Compose** - Declarative UI
+- **Coroutines + Flow** - Async operations and reactive state
+- **ViewModel + StateFlow** - MVVM architecture
+
+### RunAnywhere SDK
+
+- **Core SDK** (4.0 MB) - Model management, analytics, event system
+- **LlamaCpp Module** (2.1 MB) - 7 ARM64 optimized inference variants
+- **Models**: Qwen 2.5 0.5B (374 MB) for emergency response
+
+### Android APIs (To Integrate)
+
+- **SmsManager** - Emergency text messages
+- **TelephonyManager** - Phone calls
+- **FusedLocationProvider** - GPS tracking
+- **WorkManager** - Background monitoring
+- **NotificationManager** - Foreground service
+
+---
+
+## **AI Decision Logic**
+
+The AI engine uses on-device LLM to make intelligent decisions:
+
+### Example AI Prompt (Protocol Question)
+
+```
+You are a personal safety AI assistant...
+
+Context: A person has triggered an emergency alarm.
+
+Generate ONE simple yes/no question that can quickly assess if they 
+are in immediate danger. The question should be something they can 
+answer quickly if they're safe, but cannot answer if actively threatened.
+
+Question:
+```
+
+### Example AI Response
+
+```
+"Can you safely move to a public area right now?"
+```
+
+### Threat Assessment Logic
+
+```kotlin
+when {
+    !victimResponded -> ThreatLevel.HIGH
+    responseTimeSeconds > 30 -> ThreatLevel.HIGH
+    responseTimeSeconds < 5 -> ThreatLevel.MEDIUM
+    else -> ThreatLevel.MEDIUM
+}
+```
+
+### Action Selection (AI-Driven)
+
+```
+LOW threat:
+  → SMS to primary family contact
+
+MEDIUM threat:
+  → Missed calls to top 3 contacts
+  
+HIGH threat:
+  → Calls + location SMS to top 2 contacts
+  
+CRITICAL threat:
+  → Emergency services + all priority contacts
+```
+
+---
+
+## **Use Cases**
+
+### Primary Use Cases
+
+- **Personal Safety**: Walking alone at night
+- **Domestic Violence**: Discreet emergency alert
+- **Medical Emergency**: Quick family notification
+- **Child Safety**: Students with safety concerns
+- **Elderly Care**: Fall detection + alert
+- **Travel Safety**: Solo travelers in unfamiliar areas
+
+### Advanced Use Cases (Planned)
+
+- **Check-in System**: Auto-alert if check-in missed
+- **Geofencing**: Alert if entering/leaving safe zones
+- **Scheduled Monitoring**: AI checks in during vulnerable times
+- **Group Safety**: Multiple users with shared contacts
+
+---
+
+## **Roadmap**
+
+### Phase 1: MVP (Week 1-2)
+
+- [x] AI decision engine
+- [x] Business logic and workflow
+- [ ] Safety UI implementation
+- [ ] SMS and call integration
+- [ ] Location services
+- [ ] Basic testing
+
+### Phase 2: Core Features (Week 3-4)
+
+- [ ] Contacts management UI
+- [ ] Settings and model management
+- [ ] Runtime permissions flow
+- [ ] Alert history
+- [ ] Notification system
+
+### Phase 3: Advanced (Week 5-6)
+
+- [ ] Foreground service
+- [ ] Shake-to-activate
+- [ ] Voice command activation
+- [ ] Disguised mode
+- [ ] PIN protection
+
+### Phase 4: Polish (Week 7-8)
+
+- [ ] Geofencing
+- [ ] Check-in system
+- [ ] Evidence recording
+- [ ] Multi-language support
+- [ ] Accessibility features
+
+---
+
+## **Contributing**
+
+This is a safety-critical application. Contributions should be:
+
+1. **Well-tested** - Emergency features must be reliable
+2. **Privacy-focused** - Never compromise on-device processing
+3. **Accessible** - Consider users in high-stress situations
+4. **Documented** - Clear code and decision reasoning
+
+---
+
+## **License**
+
+This project uses the RunAnywhere SDK which follows its own license terms.  
+See [RunAnywhere SDK Repository](https://github.com/RunanywhereAI/runanywhere-sdks) for details.
+
+---
+
+## **Support**
+
+- **Implementation Questions**: See [BUILD_SAFETY_APP.md](BUILD_SAFETY_APP.md)
+- **SDK Issues**: Check [RUNANYWHERE_SDK_COMPLETE_GUIDE.md](RUNANYWHERE_SDK_COMPLETE_GUIDE.md)
+- **Architecture Questions**:
+  Review [SAFETY_APP_IMPLEMENTATION_GUIDE.md](SAFETY_APP_IMPLEMENTATION_GUIDE.md)
+
+---
+
+## **Disclaimer**
+
+This app is designed to assist in emergency situations but should not be relied upon as the sole
+means of protection. Always call emergency services (911, 112, etc.) directly if in immediate
+danger.
+
+---
+
+## **Acknowledgments**
+
+- **RunAnywhere SDK** - On-device AI inference
+- **llama.cpp** - Optimized LLM inference engine
+- **HuggingFace** - Model hosting (Qwen 2.5)
+- **Android Open Source Project** - Platform and APIs
+
+---
+
+**Built with privacy, safety, and speed in mind using on-device AI.**
+
+**Stay Safe. Stay Protected. Stay Private.**

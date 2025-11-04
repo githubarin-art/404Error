@@ -84,6 +84,29 @@ dependencies {
     // AndroidX Security (required by SDK)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
+    // Safety App Features
+    // Location services
+    implementation("com.google.android.gms:play-services-location:21.1.0")
+
+    // Biometric authentication
+    implementation("androidx.biometric:biometric:1.2.0-alpha05")
+
+    // CameraX for video recording
+    implementation("androidx.camera:camera-core:1.3.1")
+    implementation("androidx.camera:camera-camera2:1.3.1")
+    implementation("androidx.camera:camera-lifecycle:1.3.1")
+    implementation("androidx.camera:camera-video:1.3.1")
+    implementation("androidx.camera:camera-view:1.3.1")
+
+    // DataStore for settings
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+    // Accompanist for permissions
+    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
+    // Icons extended
+    implementation("androidx.compose.material:material-icons-extended:1.6.0")
+
     // Standard app dependencies
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
