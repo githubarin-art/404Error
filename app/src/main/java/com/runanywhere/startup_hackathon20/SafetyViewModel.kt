@@ -1,6 +1,7 @@
 package com.runanywhere.startup_hackathon20
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.location.Location
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -15,15 +16,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 /**
  * Main ViewModel for Safety App
  * Manages emergency sessions, AI decisions, and communication with services
  */
 class SafetyViewModel(private val context: Context) : ViewModel() {
+    // FusedLocationProviderClient for location tracking
+    private val fusedLocationClient: FusedLocationProviderClient =
+        LocationServices.getFusedLocationProviderClient(context)
 
     companion object {
         private const val TAG = "SafetyViewModel"
+        private const val PREFS_NAME = "SafetyAppPrefs"
+        private const val KEY_EMERGENCY_CONTACTS = "emergencyContacts"
     }
 
     private val aiEngine = SafetyAIEngine()
@@ -68,12 +83,26 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     private var escalationMonitorJob: Job? = null
 
     init {
-        // Load emergency contacts from storage (implement persistence layer)
+        // Load emergency contacts from storage
         loadEmergencyContacts()
+
+        // Check location availability on startup
+        checkLocationAvailability()
     }
 
     /**
      * MAIN ACTION: User triggers emergency alarm
+     * IMPORTANT: Only uses contacts that the user added during onboarding.
+     * No sample or dummy data is used for actual calls and messages.
+     *
+     * FLOW:
+     * 1. Validate model is loaded and contacts exist
+     * 2. Create emergency session
+     * 3. Start location monitoring IMMEDIATELY
+     * 4. IMMEDIATELY send SMS to ALL contacts with location (BEFORE questions)
+     * 5. Present protocol questions to assess threat level
+     * 6. AI makes decisions based on responses
+     * 7. Continue monitoring and escalating as needed
      */
     fun triggerEmergencyAlarm() {
         viewModelScope.launch {
@@ -98,10 +127,19 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                 _isAlarmActive.value = true
                 _statusMessage.value = "🚨 Emergency alarm activated"
 
-                Log.i(TAG, "Emergency triggered with ${_emergencyContacts.value.size} contacts:")
+                Log.i(TAG, "========================================")
+                Log.i(TAG, "EMERGENCY TRIGGERED - REAL CONTACTS ONLY")
+                Log.i(
+                    TAG,
+                    "Emergency triggered with ${_emergencyContacts.value.size} user-added contacts:"
+                )
                 _emergencyContacts.value.forEach { contact ->
-                    Log.i(TAG, "  → ${contact.name}: ${contact.phoneNumber}")
+                    Log.i(
+                        TAG,
+                        "  → ${contact.name}: ${contact.phoneNumber} (${contact.relationship})"
+                    )
                 }
+                Log.i(TAG, "========================================")
 
                 // Create new emergency session
                 val session = EmergencySession(
@@ -115,8 +153,26 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
                 Log.i(TAG, "Emergency session started: ${session.sessionId}")
 
-                // Start monitoring location updates
+                // IMMEDIATELY start location monitoring - don't wait!
+                Log.i(TAG, "🚀 Starting location fetch IMMEDIATELY...")
                 startLocationMonitoring()
+
+                // Give location a very short time to initialize (only 1 second)
+                // The sendImmediateEmergencyAlerts has its own retry logic for location
+                delay(1000)
+
+                // Check if we got location quickly
+                val quickLocation = _currentLocation.value
+                if (quickLocation != null) {
+                    Log.i(TAG, "⚡ Location obtained quickly!")
+                    Log.i(TAG, "   Location: ${quickLocation.latitude}, ${quickLocation.longitude}")
+                } else {
+                    Log.i(TAG, "⏱️ Location still loading, will retry during SMS send...")
+                }
+
+                // IMMEDIATELY send emergency SMS to all contacts
+                // This function will wait for location if needed (up to 3 more seconds)
+                sendImmediateEmergencyAlerts()
 
                 // Generate and present protocol question
                 presentProtocolQuestion()
@@ -129,6 +185,145 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                 _statusMessage.value = "Error: ${e.message}"
             }
         }
+    }
+
+    /**
+     * Send immediate emergency alerts to all contacts as soon as alarm is triggered
+     * This happens BEFORE protocol questions to ensure contacts are notified immediately
+     */
+    private suspend fun sendImmediateEmergencyAlerts() {
+        try {
+            _statusMessage.value = "🚨 Sending emergency alerts to all contacts..."
+
+            Log.i(TAG, "========================================")
+            Log.i(TAG, "SENDING IMMEDIATE EMERGENCY ALERTS")
+            Log.i(TAG, "========================================")
+
+            val session = _currentSession.value ?: return
+            val alertRecords = mutableListOf<AlertRecord>()
+
+            // Get current location - wait a bit if needed
+            var location = _currentLocation.value
+            if (location == null) {
+                Log.i(TAG, "⏱️ Location not available yet, waiting up to 3 seconds...")
+                var retries = 0
+                while (location == null && retries < 6) { // 6 retries * 500ms = 3 seconds max
+                    delay(500)
+                    location = _currentLocation.value
+                    retries++
+                    Log.i(
+                        TAG,
+                        "  Retry $retries/6: ${if (location != null) "Got location!" else "Still waiting..."}"
+                    )
+                }
+            }
+
+            // Log final location status
+            if (location != null) {
+                Log.i(TAG, "✅ Location available for emergency SMS!")
+                Log.i(TAG, "   Location: ${location.latitude}, ${location.longitude}")
+                Log.i(TAG, "   Accuracy: ${location.accuracy}m")
+            } else {
+                Log.w(TAG, "⚠️ No location available - sending SMS without location")
+                Log.w(TAG, "Possible reasons:")
+                Log.w(TAG, "  1. Location services disabled on device")
+                Log.w(TAG, "  2. GPS signal not available (indoors)")
+                Log.w(TAG, "  3. Location permission not granted")
+            }
+
+            // Compose emergency message with location (if available)
+            val emergencyMessage = buildEmergencyMessage(location)
+
+            Log.i(TAG, "Emergency Message Content:")
+            Log.i(TAG, emergencyMessage)
+            Log.i(TAG, "----------------------------------------")
+
+            // Send SMS to ALL emergency contacts immediately
+            _emergencyContacts.value.forEach { contact ->
+                Log.i(TAG, "Sending emergency SMS to: ${contact.name} (${contact.phoneNumber})")
+
+                val success = sendSMS(
+                    contact,
+                    emergencyMessage,
+                    appendLocation = false
+                ) // Location already in message
+
+                alertRecords.add(
+                    AlertRecord(
+                        timestamp = System.currentTimeMillis(),
+                        recipientType = mapRelationshipToType(contact.relationship),
+                        recipientName = contact.name,
+                        recipientPhone = contact.phoneNumber,
+                        messageType = MessageType.SMS,
+                        success = success
+                    )
+                )
+
+                if (success) {
+                    Log.i(TAG, "✅ Emergency SMS sent successfully to ${contact.name}")
+                } else {
+                    Log.e(TAG, "❌ Failed to send emergency SMS to ${contact.name}")
+                }
+
+                // Small delay between messages to avoid carrier throttling
+                delay(500)
+            }
+
+            // Update session with alert records
+            val updatedSession = session.copy(
+                alertsSent = session.alertsSent + alertRecords
+            )
+            _currentSession.value = updatedSession
+            _alertHistory.value = updatedSession.alertsSent
+
+            val successCount = alertRecords.count { it.success }
+            val totalCount = alertRecords.size
+
+            Log.i(TAG, "========================================")
+            Log.i(TAG, "EMERGENCY ALERTS SENT: $successCount/$totalCount successful")
+            Log.i(TAG, "========================================")
+
+            _statusMessage.value = "✅ Emergency alerts sent ($successCount/$totalCount)"
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending immediate emergency alerts", e)
+            _statusMessage.value = "⚠️ Error sending alerts: ${e.message}"
+        }
+    }
+
+    /**
+     * Build the emergency message with location and threat details
+     */
+    private fun buildEmergencyMessage(location: Location? = null): String {
+        // Use provided location or fall back to current location
+        val finalLocation = location ?: _currentLocation.value
+
+        val timestamp = java.text.SimpleDateFormat(
+            "MMM dd, yyyy 'at' hh:mm a",
+            java.util.Locale.getDefault()
+        ).format(java.util.Date())
+
+        val message = StringBuilder()
+        message.append("🚨 EMERGENCY ALERT 🚨\n\n")
+        message.append("I need immediate help! I've triggered my emergency alarm.\n\n")
+        message.append("Time: $timestamp\n\n")
+
+        if (finalLocation != null) {
+            message.append("📍 MY LOCATION:\n")
+            message.append("Latitude: ${finalLocation.latitude}\n")
+            message.append("Longitude: ${finalLocation.longitude}\n")
+            message.append("Accuracy: ${finalLocation.accuracy}m\n\n")
+            message.append("🗺️ Open in Maps:\n")
+            message.append("https://maps.google.com/?q=${finalLocation.latitude},${finalLocation.longitude}\n\n")
+            message.append("Please come to my location or call emergency services if needed.\n")
+        } else {
+            message.append("⚠️ Location unavailable - Please try calling me!\n\n")
+            message.append("If I don't respond, please contact emergency services.\n")
+        }
+
+        message.append("\n- Sent via Guardian AI Safety App")
+
+        return message.toString()
     }
 
     /**
@@ -327,7 +522,7 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         for (action in actions) {
             when (action) {
                 is EmergencyAction.SendSMS -> {
-                    val success = sendSMS(action.contact, action.message)
+                    val success = sendSMS(action.contact, action.message, appendLocation = true)
                     alertRecords.add(
                         AlertRecord(
                             timestamp = System.currentTimeMillis(),
@@ -453,6 +648,25 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     }
 
     /**
+     * Enter stealth mode - UI returns to normal while emergency monitoring continues
+     * This is triggered when user presses back/home button during emergency
+     * Emergency alerts have already been sent, now we just hide the UI from attacker
+     */
+    fun enterStealthMode() {
+        // Don't cancel the emergency, just clear the UI elements
+        _currentQuestion.value = null
+        _questionTimeRemaining.value = null
+        questionTimerJob?.cancel()
+        
+        Log.i(TAG, "🕶️ STEALTH MODE ACTIVATED")
+        Log.i(TAG, "Emergency continues in background, but UI appears normal")
+        Log.i(TAG, "Contacts have been alerted and will receive updates")
+        
+        // Emergency session and monitoring continues in background
+        // The UI will show the normal 404 screen as a decoy
+    }
+
+    /**
      * Send notifications that alarm was cancelled (false alarm)
      */
     private suspend fun sendCancellationNotifications() {
@@ -482,19 +696,8 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     // ============ Contact Management ============
 
     fun addEmergencyContact(contact: EmergencyContact) {
-        // Add the user's contact to the list
         val currentContacts = _emergencyContacts.value
-
-        // If this is the first contact being added, clear any sample contacts
-        if (currentContacts.any { it.phoneNumber.startsWith("+123456789") }) {
-            // Clear sample contacts - start fresh with only user's contacts
-            _emergencyContacts.value = listOf(contact)
-            Log.i(TAG, "Cleared sample contacts. Starting with user contact: ${contact.name}")
-        } else {
-            // Add to existing user contacts
-            _emergencyContacts.value = currentContacts + contact
-        }
-
+        _emergencyContacts.value = currentContacts + contact
         saveEmergencyContacts()
         _statusMessage.value = "Contact added: ${contact.name}"
         Log.i(TAG, "✅ Emergency contact added: ${contact.name} - ${contact.phoneNumber}")
@@ -514,23 +717,205 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     }
 
     private fun loadEmergencyContacts() {
-        // Start with EMPTY list - no sample contacts
-        // User MUST add contacts through onboarding
-        _emergencyContacts.value = emptyList()
-        Log.i(TAG, "Emergency contacts initialized. User must add contacts through onboarding.")
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val contactsJson = prefs.getString(KEY_EMERGENCY_CONTACTS, null)
+
+        if (contactsJson != null) {
+            try {
+                val jsonArray = JSONArray(contactsJson)
+                val contacts = mutableListOf<EmergencyContact>()
+
+                for (i in 0 until jsonArray.length()) {
+                    val jsonObject = jsonArray.getJSONObject(i)
+                    contacts.add(
+                        EmergencyContact(
+                            id = jsonObject.getString("id"),
+                            name = jsonObject.getString("name"),
+                            phoneNumber = jsonObject.getString("phoneNumber"),
+                            relationship = jsonObject.getString("relationship"),
+                            priority = jsonObject.getInt("priority")
+                        )
+                    )
+                }
+
+                _emergencyContacts.value = contacts
+                Log.i(TAG, "✅ Loaded ${contacts.size} user-added emergency contacts from storage")
+                contacts.forEach { contact ->
+                    Log.i(TAG, "  → ${contact.name}: ${contact.phoneNumber}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading emergency contacts", e)
+                _emergencyContacts.value = emptyList()
+            }
+        } else {
+            _emergencyContacts.value = emptyList()
+            Log.i(TAG, "No saved contacts found. User must add contacts through onboarding.")
+        }
     }
 
     private fun saveEmergencyContacts() {
-        // TODO: Implement SharedPreferences or Room database to persist contacts
-        Log.i(TAG, "Saving ${_emergencyContacts.value.size} emergency contacts")
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val editor = prefs.edit()
+
+        val jsonArray = JSONArray()
+        _emergencyContacts.value.forEach { contact ->
+            val jsonObject = JSONObject()
+            jsonObject.put("id", contact.id)
+            jsonObject.put("name", contact.name)
+            jsonObject.put("phoneNumber", contact.phoneNumber)
+            jsonObject.put("relationship", contact.relationship)
+            jsonObject.put("priority", contact.priority)
+            jsonArray.put(jsonObject)
+        }
+
+        editor.putString(KEY_EMERGENCY_CONTACTS, jsonArray.toString())
+        editor.apply()
+
+        Log.i(
+            TAG,
+            "💾 Saved ${_emergencyContacts.value.size} emergency contacts to persistent storage"
+        )
+        _emergencyContacts.value.forEach { contact ->
+            Log.i(TAG, "  → ${contact.name}: ${contact.phoneNumber}")
+        }
     }
 
     // ============ Location Management ============
 
     private fun startLocationMonitoring() {
-        // TODO: Integrate with LocationManager/FusedLocationProvider
-        // For now, this is a placeholder
-        Log.i(TAG, "Location monitoring started")
+        // Check location permission
+        val hasFine = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarse = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        Log.i(TAG, "📍 Starting location monitoring...")
+        Log.i(TAG, "Fine location: ${if (hasFine) "✅ Granted" else "❌ Denied"}")
+        Log.i(TAG, "Coarse location: ${if (hasCoarse) "✅ Granted" else "❌ Denied"}")
+
+        if (!hasFine && !hasCoarse) {
+            Log.w(TAG, "⚠️ Location permission not granted.")
+            Log.w(TAG, "Emergency alert will be sent without location.")
+            Log.w(TAG, "Note: Android requires explicit user consent for location access.")
+            _statusMessage.value = "Sending emergency alert (location not available)"
+
+            // Still try to get location from Android system LocationManager as fallback
+            tryGetLocationWithoutPermission()
+            return
+        }
+
+        try {
+            // Strategy 1: Try to get last known location (fastest, works even with coarse)
+            if (hasCoarse || hasFine) {
+                fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+                    if (location != null) {
+                        val age = (System.currentTimeMillis() - location.time) / 1000
+                        Log.i(
+                            TAG,
+                            "✅ Got last known location: ${location.latitude}, ${location.longitude}"
+                        )
+                        Log.i(TAG, "   Accuracy: ${location.accuracy}m, Age: ${age}s old")
+
+                        // Use last known location if it's recent (within 5 minutes)
+                        if (age < 300) {
+                            Log.i(TAG, "✅ Last known location is recent enough, using it")
+                            updateLocation(location)
+                        } else {
+                            Log.w(
+                                TAG,
+                                "⚠️ Last known location is old (${age}s), will try fresh location"
+                            )
+                        }
+                    } else {
+                        Log.w(TAG, "⚠️ No last known location available")
+                    }
+                }.addOnFailureListener { e ->
+                    Log.e(TAG, "❌ Failed to get last known location: ${e.message}")
+                }
+            }
+
+            // Strategy 2: Request current location with appropriate priority
+            val cancellationTokenSource = CancellationTokenSource()
+            val priority = if (hasFine) {
+                Log.i(TAG, "Using HIGH_ACCURACY location (GPS + Network)")
+                Priority.PRIORITY_HIGH_ACCURACY
+            } else {
+                Log.i(TAG, "Using BALANCED_POWER_ACCURACY (Network-based)")
+                Priority.PRIORITY_BALANCED_POWER_ACCURACY
+            }
+
+            fusedLocationClient.getCurrentLocation(
+                priority,
+                cancellationTokenSource.token
+            ).addOnSuccessListener { location: Location? ->
+                if (location != null) {
+                    Log.i(
+                        TAG,
+                        "✅ Got current location: ${location.latitude}, ${location.longitude}"
+                    )
+                    Log.i(TAG, "   Accuracy: ${location.accuracy}m, Provider: ${location.provider}")
+                    updateLocation(location)
+                } else {
+                    Log.w(TAG, "⚠️ Current location returned null")
+                    Log.w(TAG, "Possible reasons:")
+                    Log.w(TAG, "  1. GPS/Location services disabled in device settings")
+                    Log.w(TAG, "  2. Device is indoors with poor GPS/network signal")
+                    Log.w(TAG, "  3. Location fetch timeout")
+                    Log.w(TAG, "Emergency alert will be sent without location")
+                }
+            }.addOnFailureListener { e ->
+                Log.e(TAG, "❌ Error fetching current location: ${e.message}", e)
+                Log.e(TAG, "Emergency alert will be sent without location")
+            }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "❌ Security exception getting location: ${e.message}", e)
+            Log.e(TAG, "This shouldn't happen as we checked permissions")
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Unexpected error getting location: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Fallback method to try getting location without explicit permission
+     * This uses passive location providers that may be available
+     */
+    private fun tryGetLocationWithoutPermission() {
+        try {
+            Log.i(TAG, "Attempting fallback location methods...")
+
+            // Try using Android's LocationManager for passive location
+            val locationManager =
+                context.getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
+
+            if (locationManager != null) {
+                // Check if any provider is enabled
+                val gpsEnabled =
+                    locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+                val networkEnabled =
+                    locationManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)
+
+                Log.i(TAG, "GPS Provider: ${if (gpsEnabled) "Enabled" else "Disabled"}")
+                Log.i(TAG, "Network Provider: ${if (networkEnabled) "Enabled" else "Disabled"}")
+
+                if (!gpsEnabled && !networkEnabled) {
+                    Log.w(TAG, "⚠️ All location providers are disabled on device")
+                    Log.w(TAG, "User needs to enable Location in device Settings")
+                }
+            }
+
+            Log.i(TAG, "Emergency alert will proceed without location")
+            Log.i(
+                TAG,
+                "To include location: Grant location permission during onboarding or in app settings"
+            )
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in fallback location method: ${e.message}")
+        }
     }
 
     fun updateLocation(location: Location) {
@@ -627,10 +1012,14 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
     // ============ Communication Layer (Stub - Implement with Android APIs) ============
 
-    private fun sendSMS(contact: EmergencyContact, message: String): Boolean {
+    private fun sendSMS(
+        contact: EmergencyContact,
+        message: String,
+        appendLocation: Boolean = false
+    ): Boolean {
         return try {
-            // Add location to message if available
-            val fullMessage = if (_currentLocation.value != null) {
+            // Add location to message if available and requested
+            val fullMessage = if (appendLocation && _currentLocation.value != null) {
                 val loc = _currentLocation.value!!
                 "$message\n\nMy location: https://maps.google.com/?q=${loc.latitude},${loc.longitude}"
             } else {
@@ -757,5 +1146,84 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         super.onCleared()
         questionTimerJob?.cancel()
         escalationMonitorJob?.cancel()
+    }
+
+    /**
+     * Check if location services are available and configured properly
+     * This helps diagnose location issues
+     */
+    private fun checkLocationAvailability() {
+        viewModelScope.launch {
+            try {
+                Log.i(TAG, "========================================")
+                Log.i(TAG, "LOCATION DIAGNOSTIC CHECK")
+                Log.i(TAG, "========================================")
+
+                // Check permissions
+                val hasFine = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+                val hasCoarse = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+
+                Log.i(TAG, "Permission Status:")
+                Log.i(TAG, "  FINE_LOCATION: ${if (hasFine) "✅ GRANTED" else "❌ DENIED"}")
+                Log.i(TAG, "  COARSE_LOCATION: ${if (hasCoarse) "✅ GRANTED" else "❌ DENIED"}")
+
+                // Check location providers
+                val locationManager = context.getSystemService(Context.LOCATION_SERVICE)
+                        as? android.location.LocationManager
+
+                if (locationManager != null) {
+                    val gpsEnabled = locationManager.isProviderEnabled(
+                        android.location.LocationManager.GPS_PROVIDER
+                    )
+                    val networkEnabled = locationManager.isProviderEnabled(
+                        android.location.LocationManager.NETWORK_PROVIDER
+                    )
+
+                    Log.i(TAG, "Device Location Services:")
+                    Log.i(TAG, "  GPS Provider: ${if (gpsEnabled) "✅ ENABLED" else "❌ DISABLED"}")
+                    Log.i(
+                        TAG,
+                        "  Network Provider: ${if (networkEnabled) "✅ ENABLED" else "❌ DISABLED"}"
+                    )
+
+                    if (!gpsEnabled && !networkEnabled) {
+                        Log.w(TAG, "⚠️ WARNING: All location providers are DISABLED!")
+                        Log.w(TAG, "User should enable Location in Device Settings")
+                    }
+                }
+
+                // Try to get last known location if we have permission
+                if (hasFine || hasCoarse) {
+                    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                        if (location != null) {
+                            val age =
+                                (System.currentTimeMillis() - location.time) / 1000 / 60 // minutes
+                            Log.i(TAG, "Last Known Location:")
+                            Log.i(TAG, "  ✅ Available")
+                            Log.i(TAG, "  Age: $age minutes old")
+                            Log.i(TAG, "  Accuracy: ${location.accuracy}m")
+                        } else {
+                            Log.w(TAG, "Last Known Location: ❌ NOT AVAILABLE")
+                            Log.w(TAG, "Device may have never obtained a location before")
+                        }
+                    }.addOnFailureListener { e ->
+                        Log.e(TAG, "❌ Failed to check last known location: ${e.message}")
+                    }
+                } else {
+                    Log.w(TAG, "❌ Cannot check last known location - no permission")
+                }
+
+                Log.i(TAG, "========================================")
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error in location diagnostic: ${e.message}", e)
+            }
+        }
     }
 }

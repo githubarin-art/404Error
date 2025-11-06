@@ -1,5 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- 
+        Guardian AI - Emergency Alert Theme
+        Designed for emergency response and safety applications
+        Following 404 error aesthetic with high visibility
+    -->
+    <style name="Theme.Startup_hackathon20" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Primary Colors - Safety Red -->
+        <item name="android:colorPrimary">@color/safety_red</item>
+        <item name="android:colorPrimaryDark">@color/safety_red_dark</item>
+        <item name="android:colorAccent">@color/trust_blue</item>
 
-    <style name="Theme.Startup_hackathon20" parent="android:Theme.Material.Light.NoActionBar" />
+        <!-- Background & Surface -->
+        <item name="android:colorBackground">@color/off_white</item>
+        <item name="android:windowBackground">@color/off_white</item>
+
+        <!-- Text Colors -->
+        <item name="android:textColorPrimary">@color/charcoal</item>
+        <item name="android:textColorSecondary">@color/charcoal_medium</item>
+
+        <!-- Status Bar & Navigation Bar -->
+        <item name="android:statusBarColor">@color/safety_red</item>
+        <item name="android:navigationBarColor">@color/light_gray</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Dark Theme Variant (404 Style) -->
+    <style name="Theme.Startup_hackathon20.Dark" parent="android:Theme.Material.NoActionBar">
+        <!-- Primary Colors - Brighter in dark mode -->
+        <item name="android:colorPrimary">@color/safety_red_light</item>
+        <item name="android:colorPrimaryDark">@color/safety_red</item>
+        <item name="android:colorAccent">@color/trust_blue_light</item>
+
+        <!-- Background & Surface - Dark mode -->
+        <item name="android:colorBackground">@color/dark_bg</item>
+        <item name="android:windowBackground">@color/dark_bg</item>
+
+        <!-- Text Colors - Light for dark mode -->
+        <item name="android:textColorPrimary">@color/off_white</item>
+        <item name="android:textColorSecondary">@color/light_gray</item>
+
+        <!-- Status Bar & Navigation Bar - Dark -->
+        <item name="android:statusBarColor">@color/darker_surface</item>
+        <item name="android:navigationBarColor">@color/dark_surface</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

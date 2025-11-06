@@ -10,19 +10,26 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.runanywhere.startup_hackathon20.ui.screens.EmergencyScreen
 import com.runanywhere.startup_hackathon20.ui.screens.OnboardingScreen
+import com.runanywhere.startup_hackathon20.ui.screens.ContactsScreen
+import com.runanywhere.startup_hackathon20.ui.screens.SettingsScreen
+import com.runanywhere.startup_hackathon20.ui.screens.ThreatAnalysisScreen
 import com.runanywhere.startup_hackathon20.ui.theme.Startup_hackathon20Theme
+import com.runanywhere.startup_hackathon20.ui.theme.*
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,10 +51,6 @@ fun GuardianApp() {
 
     // Check if onboarding is complete
     val sharedPrefs = context.getSharedPreferences("guardian_prefs", Context.MODE_PRIVATE)
-
-    // IMPORTANT: For testing, set this to false to see onboarding
-    // For production, remove this line
-    sharedPrefs.edit().putBoolean("onboarding_complete", false).apply()
 
     var isOnboardingComplete by remember {
         mutableStateOf(sharedPrefs.getBoolean("onboarding_complete", false))
@@ -74,54 +77,73 @@ fun SafetyApp(viewModel: SafetyViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
+        containerColor = OffWhite,
         bottomBar = {
-            NavigationBar {
+            NavigationBar(
+                containerColor = LightGray,
+                contentColor = Charcoal
+            ) {
                 NavigationBarItem(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
                     icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("Home") }
+                    label = { Text("HOME", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = SafetyRed,
+                        selectedTextColor = SafetyRed,
+                        unselectedIconColor = CharcoalLight,
+                        unselectedTextColor = CharcoalLight,
+                        indicatorColor = SafetyRed.copy(alpha = 0.2f)
+                    )
                 )
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
                     icon = { Icon(Icons.Default.Person, contentDescription = "Contacts") },
-                    label = { Text("Contacts") }
+                    label = { Text("CONTACTS", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = TrustBlue,
+                        selectedTextColor = TrustBlue,
+                        unselectedIconColor = CharcoalLight,
+                        unselectedTextColor = CharcoalLight,
+                        indicatorColor = TrustBlue.copy(alpha = 0.2f)
+                    )
                 )
                 NavigationBarItem(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Default.Warning, contentDescription = "Threat Analysis") },
+                    label = { Text("THREAT", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = AmberYellowDark,
+                        selectedTextColor = AmberYellowDark,
+                        unselectedIconColor = CharcoalLight,
+                        unselectedTextColor = CharcoalLight,
+                        indicatorColor = AmberYellow.copy(alpha = 0.2f)
+                    )
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings") }
+                    label = { Text("SETTINGS", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = CharcoalMedium,
+                        selectedTextColor = CharcoalMedium,
+                        unselectedIconColor = CharcoalLight,
+                        unselectedTextColor = CharcoalLight,
+                        indicatorColor = CharcoalLight.copy(alpha = 0.2f)
+                    )
                 )
             }
         }
     ) { padding ->
         when (selectedTab) {
             0 -> EmergencyScreen(viewModel, Modifier.padding(padding))
-            1 -> ContactsPlaceholder(Modifier.padding(padding))
-            2 -> SettingsPlaceholder(Modifier.padding(padding))
+            1 -> ContactsScreen(viewModel, Modifier.padding(padding))
+            2 -> ThreatAnalysisScreen(viewModel, Modifier.padding(padding))
+            3 -> SettingsScreen(viewModel, Modifier.padding(padding))
         }
-    }
-}
-
-@Composable
-fun ContactsPlaceholder(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Contacts Management - Coming Soon", style = MaterialTheme.typography.headlineSmall)
-    }
-}
-
-@Composable
-fun SettingsPlaceholder(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("Settings - Coming Soon", style = MaterialTheme.typography.headlineSmall)
     }
 }
 

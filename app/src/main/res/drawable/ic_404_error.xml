@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="512dp"
+    android:height="512dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <!-- Background Circle -->
+    <path
+        android:fillColor="#E8E4DD"
+        android:pathData="M256,256m-250,0a250,250 0,1 1,500 0a250,250 0,1 1,-500 0" />
+
+    <!-- Border Circle -->
+    <path
+        android:strokeColor="#3D3D3D"
+        android:strokeWidth="8"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M256,256m-246,0a246,246 0,1 1,492 0a246,246 0,1 1,-492 0" />
+
+    <!-- 404 Text - Main (Black with glitch) -->
+    <group>
+        <!-- "4" left -->
+        <path
+            android:fillColor="#2D2D2D"
+            android:pathData="M 140,180 L 140,240 L 100,240 L 100,260 L 140,260 L 140,290 L 170,290 L 170,260 L 180,260 L 180,240 L 170,240 L 170,170 L 140,170 Z M 140,200 L 140,240 L 125,240 L 140,200 Z" />
+
+        <!-- "0" center -->
+        <path
+            android:fillColor="#2D2D2D"
+            android:pathData="M 256,170 C 220,170 200,195 200,235 C 200,275 220,300 256,300 C 292,300 312,275 312,235 C 312,195 292,170 256,170 Z M 256,200 C 275,200 282,215 282,235 C 282,255 275,270 256,270 C 237,270 230,255 230,235 C 230,215 237,200 256,200 Z" />
+
+        <!-- "4" right -->
+        <path
+            android:fillColor="#2D2D2D"
+            android:pathData="M 342,180 L 342,240 L 302,240 L 302,260 L 342,260 L 342,290 L 372,290 L 372,260 L 382,260 L 382,240 L 372,240 L 372,170 L 342,170 Z M 342,200 L 342,240 L 327,240 L 342,200 Z" />
+    </group>
+
+    <!-- Glitch Effect - Red offset -->
+    <group android:alpha="0.3">
+        <path
+            android:fillColor="#E53935"
+            android:pathData="M 145,175 L 145,235 L 105,235 L 105,255 L 145,255 L 145,285 L 175,285 L 175,255 L 185,255 L 185,235 L 175,235 L 175,165 L 145,165 Z" />
+        <path
+            android:fillColor="#E53935"
+            android:pathData="M 261,165 C 225,165 205,190 205,230 C 205,270 225,295 261,295 C 297,295 317,270 317,230 C 317,190 297,165 261,165 Z" />
+        <path
+            android:fillColor="#E53935"
+            android:pathData="M 347,175 L 347,235 L 307,235 L 307,255 L 347,255 L 347,285 L 377,285 L 377,255 L 387,255 L 387,235 L 377,235 L 377,165 L 347,165 Z" />
+    </group>
+
+    <!-- Glitch Effect - Cyan offset -->
+    <group android:alpha="0.3">
+        <path
+            android:fillColor="#00BCD4"
+            android:pathData="M 135,185 L 135,245 L 95,245 L 95,265 L 135,265 L 135,295 L 165,295 L 165,265 L 175,265 L 175,245 L 165,245 L 165,175 L 135,175 Z" />
+        <path
+            android:fillColor="#00BCD4"
+            android:pathData="M 251,175 C 215,175 195,200 195,240 C 195,280 215,305 251,305 C 287,305 307,280 307,240 C 307,200 287,175 251,175 Z" />
+        <path
+            android:fillColor="#00BCD4"
+            android:pathData="M 337,185 L 337,245 L 297,245 L 297,265 L 337,265 L 337,295 L 367,295 L 367,265 L 377,265 L 377,245 L 367,245 L 367,175 L 337,175 Z" />
+    </group>
+
+    <!-- "error" text -->
+    <path
+        android:fillColor="#5A5A5A"
+        android:pathData="M 185,320 L 185,340 L 220,340 L 220,330 L 195,330 L 195,325 L 215,325 L 215,320 Z
+                      M 230,320 L 230,340 L 240,340 L 240,335 L 255,340 L 265,340 L 245,330 L 265,320 Z
+                      M 275,320 L 275,340 L 285,340 L 285,335 L 300,340 L 310,340 L 290,330 L 310,320 Z
+                      M 320,320 C 315,320 310,323 310,330 C 310,337 315,340 320,340 C 325,340 330,337 330,330 C 330,323 325,320 320,320 Z M 320,325 C 322,325 325,326 325,330 C 325,334 322,335 320,335 C 318,335 315,334 315,330 C 315,326 318,325 320,325 Z" />
+
+    <!-- "page not found" text -->
+    <path
+        android:fillColor="#5A5A5A"
+        android:pathData="M 140,360 L 140,365 L 145,365 L 145,380 L 150,380 L 150,365 L 155,365 L 155,360 Z
+                      M 165,360 C 160,360 157,363 157,370 C 157,377 160,380 165,380 C 170,380 173,377 173,370 C 173,363 170,360 165,360 Z
+                      M 183,360 L 183,380 L 193,380 L 193,375 L 208,380 L 213,380 L 198,370 L 213,360 Z
+                      M 223,360 L 223,380 L 238,380 L 238,375 L 228,375 L 228,365 L 238,365 L 238,360 Z" />
+</vector>

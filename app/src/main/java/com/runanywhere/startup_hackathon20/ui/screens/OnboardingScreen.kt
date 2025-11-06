@@ -3,6 +3,7 @@ package com.runanywhere.startup_hackathon20.ui.screens
 import android.Manifest
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.google.accompanist.permissions.*
 import com.runanywhere.startup_hackathon20.EmergencyContact
 import com.runanywhere.startup_hackathon20.SafetyViewModel
+import com.runanywhere.startup_hackathon20.ui.theme.*
 
 enum class OnboardingStep {
     WELCOME,
@@ -56,8 +58,9 @@ fun OnboardingScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        MaterialTheme.colorScheme.surface
+                        OffWhite,
+                        LightGray,
+                        MediumGray.copy(alpha = 0.3f)
                     )
                 )
             )
@@ -124,14 +127,15 @@ fun OnboardingScreen(
             }
         }
 
-        // Progress Indicator at top
+        // Progress Indicator at top with emergency theme
         if (currentStep != OnboardingStep.WELCOME && currentStep != OnboardingStep.COMPLETION) {
             LinearProgressIndicator(
                 progress = { getProgressForStep(currentStep) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.TopCenter),
-                color = MaterialTheme.colorScheme.primary
+                color = SafetyRed,
+                trackColor = LightGray
             )
         }
     }
@@ -146,11 +150,12 @@ private fun WelcomeStep(onContinue: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // App Icon/Logo
+        // App Icon/Logo with emergency theme
         Surface(
             modifier = Modifier.size(120.dp),
             shape = RoundedCornerShape(30.dp),
-            color = MaterialTheme.colorScheme.primary
+            color = SafetyRed,
+            shadowElevation = 12.dp
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
@@ -163,20 +168,22 @@ private fun WelcomeStep(onContinue: () -> Unit) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "Welcome to Guardian AI",
+            text = "GUARDIAN AI",
             fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            textAlign = TextAlign.Center
+            fontWeight = FontWeight.ExtraBold,
+            color = SafetyRed,
+            textAlign = TextAlign.Center,
+            letterSpacing = 2.sp
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Your AI-powered personal safety companion",
+            text = "Emergency Response System",
             fontSize = 18.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            textAlign = TextAlign.Center
+            color = Charcoal,
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Medium
         )
 
         Spacer(modifier = Modifier.height(48.dp))
@@ -184,9 +191,10 @@ private fun WelcomeStep(onContinue: () -> Unit) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                containerColor = AmberYellowLight
             ),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(2.dp, AmberYellow)
         ) {
             Column(
                 modifier = Modifier.padding(24.dp),
@@ -195,7 +203,8 @@ private fun WelcomeStep(onContinue: () -> Unit) {
                 Text(
                     text = "To enable advanced safety features, we need to install the required AI model:",
                     fontSize = 16.sp,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                    color = Charcoal,
+                    fontWeight = FontWeight.Medium
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -206,14 +215,15 @@ private fun WelcomeStep(onContinue: () -> Unit) {
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = TrustBlue,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "Qwen 2.5 0.5B 6K Model",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Charcoal
                     )
                 }
 
@@ -222,7 +232,7 @@ private fun WelcomeStep(onContinue: () -> Unit) {
                 Text(
                     text = "Size: ~374 MB • On-device AI • 100% Private",
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                    color = CharcoalMedium,
                     modifier = Modifier.padding(start = 36.dp)
                 )
             }
@@ -235,9 +245,17 @@ private fun WelcomeStep(onContinue: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SafetyRed
+            )
         ) {
-            Text("Continue", fontSize = 18.sp)
+            Text(
+                "CONTINUE",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -245,7 +263,7 @@ private fun WelcomeStep(onContinue: () -> Unit) {
         Text(
             text = "By continuing, you agree to our Terms & Privacy Policy",
             fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            color = CharcoalLight,
             textAlign = TextAlign.Center
         )
     }
@@ -274,15 +292,19 @@ private fun ModelInstallationStep(
         if (!isComplete) {
             CircularProgressIndicator(
                 modifier = Modifier.size(80.dp),
-                strokeWidth = 6.dp
+                strokeWidth = 6.dp,
+                color = SafetyRed,
+                trackColor = LightGray
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = "Installing AI Model...",
+                text = "INSTALLING AI MODEL...",
                 fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = Charcoal,
+                letterSpacing = 1.sp
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -290,7 +312,7 @@ private fun ModelInstallationStep(
             Text(
                 text = statusMessage,
                 fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                color = CharcoalMedium,
                 textAlign = TextAlign.Center
             )
 
@@ -299,8 +321,10 @@ private fun ModelInstallationStep(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                    containerColor = TrustBlueLight.copy(alpha = 0.2f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, TrustBlue)
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp)
@@ -308,13 +332,14 @@ private fun ModelInstallationStep(
                     Text(
                         text = "💡 Did you know?",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
+                        fontSize = 16.sp,
+                        color = TrustBlueDark
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Your AI model runs entirely on your device. No data is sent to the cloud, ensuring complete privacy.",
                         fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = Charcoal
                     )
                 }
             }
@@ -323,17 +348,18 @@ private fun ModelInstallationStep(
             Icon(
                 imageVector = Icons.Default.Check,
                 contentDescription = null,
-                tint = Color(0xFF4CAF50),
+                tint = SuccessGreen,
                 modifier = Modifier.size(100.dp)
             )
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "Installation Complete!",
+                text = "INSTALLATION COMPLETE!",
                 fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF4CAF50)
+                fontWeight = FontWeight.ExtraBold,
+                color = SuccessGreen,
+                letterSpacing = 1.sp
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -341,7 +367,7 @@ private fun ModelInstallationStep(
             Text(
                 text = "AI model is ready for use",
                 fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                color = CharcoalMedium
             )
         }
     }
@@ -365,16 +391,18 @@ private fun PhoneNumberStep(
         Icon(
             imageVector = Icons.Default.Phone,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = TrustBlue,
             modifier = Modifier.size(64.dp)
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Your Phone Number",
+            text = "YOUR PHONE NUMBER",
             fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = Charcoal,
+            letterSpacing = 1.sp
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -382,7 +410,7 @@ private fun PhoneNumberStep(
         Text(
             text = "Enter your mobile number for alerts and verification",
             fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = CharcoalMedium,
             textAlign = TextAlign.Center
         )
 
@@ -395,11 +423,16 @@ private fun PhoneNumberStep(
             label = { Text("Phone Number") },
             placeholder = { Text("+1 (555) 123-4567") },
             leadingIcon = {
-                Icon(Icons.Default.Phone, contentDescription = null)
+                Icon(Icons.Default.Phone, contentDescription = null, tint = TrustBlue)
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             singleLine = true,
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = TrustBlue,
+                unfocusedBorderColor = MediumGray,
+                focusedLabelColor = TrustBlue
+            )
         )
 
         Spacer(modifier = Modifier.weight(1f))
@@ -410,9 +443,18 @@ private fun PhoneNumberStep(
                 .fillMaxWidth()
                 .height(56.dp),
             enabled = phoneNumber.isNotBlank(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = TrustBlue,
+                disabledContainerColor = MediumGray
+            )
         ) {
-            Text("Continue", fontSize = 18.sp)
+            Text(
+                "CONTINUE",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
         }
     }
 }
@@ -436,16 +478,18 @@ private fun EmergencyContactsStep(
         Icon(
             imageVector = Icons.Default.Person,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = SafetyRed,
             modifier = Modifier.size(64.dp)
         )
 
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Emergency Contacts",
+            text = "EMERGENCY CONTACTS",
             fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = Charcoal,
+            letterSpacing = 1.sp
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -453,7 +497,7 @@ private fun EmergencyContactsStep(
         Text(
             text = "Add trusted contacts who will be notified in emergencies",
             fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = CharcoalMedium,
             textAlign = TextAlign.Center
         )
 
@@ -482,11 +526,19 @@ private fun EmergencyContactsStep(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(2.dp, TrustBlue),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = TrustBlue
+                )
             ) {
                 Icon(Icons.Default.Add, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Add Emergency Contact")
+                Text(
+                    "ADD EMERGENCY CONTACT",
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
             }
         }
 
@@ -498,9 +550,18 @@ private fun EmergencyContactsStep(
                 .fillMaxWidth()
                 .height(56.dp),
             enabled = contacts.isNotEmpty(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = SafetyRed,
+                disabledContainerColor = MediumGray
+            )
         ) {
-            Text("Continue", fontSize = 18.sp)
+            Text(
+                "CONTINUE",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
         }
     }
 
@@ -520,8 +581,10 @@ private fun ContactCard(contact: EmergencyContact, onRemove: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = LightGray
+        ),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, MediumGray)
     ) {
         Row(
             modifier = Modifier
@@ -532,12 +595,12 @@ private fun ContactCard(contact: EmergencyContact, onRemove: () -> Unit) {
             Surface(
                 modifier = Modifier.size(48.dp),
                 shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.primary
+                color = TrustBlue
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
                         text = contact.name.first().uppercase(),
-                        color = Color.White,
+                        color = OffWhite,
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     )
@@ -549,13 +612,14 @@ private fun ContactCard(contact: EmergencyContact, onRemove: () -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = contact.name,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Charcoal
                 )
                 Text(
                     text = "${contact.phoneNumber} • ${contact.relationship}",
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    color = CharcoalMedium
                 )
             }
 
@@ -563,7 +627,7 @@ private fun ContactCard(contact: EmergencyContact, onRemove: () -> Unit) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Remove",
-                    tint = MaterialTheme.colorScheme.error
+                    tint = SafetyRed
                 )
             }
         }
@@ -664,75 +728,135 @@ private fun LocationPermissionStep(
         Icon(
             imageVector = Icons.Default.LocationOn,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = SafetyRed,
             modifier = Modifier.size(80.dp)
         )
 
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "Location Access",
+            text = "LOCATION ACCESS REQUIRED",
             fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = SafetyRed,
+            letterSpacing = 1.sp
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Location permission is needed only during an emergency to help contacts and authorities reach you faster.",
+            text = "Location permission is REQUIRED to send your GPS coordinates in emergency alerts. This is critical for emergency responders to find you quickly.",
             fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = CharcoalMedium,
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Show warning if permission not granted
+        if (!locationPermissions.allPermissionsGranted) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = SafetyRed.copy(alpha = 0.2f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "⚠️ REQUIRED PERMISSION",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = SafetyRed
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "You must grant location permission to use this safety app. Without location, emergency contacts cannot find you.",
+                        fontSize = 14.sp,
+                        color = CharcoalMedium
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
 
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+                containerColor = TrustBlueLight.copy(alpha = 0.2f)
+            ),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, TrustBlue)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp)
             ) {
-                PermissionFeatureItem("📍", "Share your location with emergency contacts")
-                PermissionFeatureItem("🗺️", "Help first responders find you quickly")
+                PermissionFeatureItem("📍", "Share location in emergency SMS")
+                PermissionFeatureItem("🗺️", "Help responders find you quickly")
                 PermissionFeatureItem("🔒", "Used only when SOS is activated")
+                PermissionFeatureItem("✅", "Required for app to function")
             }
         }
 
         Spacer(modifier = Modifier.weight(1f))
 
-        Button(
-            onClick = {
-                if (locationPermissions.allPermissionsGranted) {
-                    onContinue()
-                } else {
+        // Show grant button if permission not granted
+        if (!locationPermissions.allPermissionsGranted) {
+            Button(
+                onClick = {
                     locationPermissions.launchMultiplePermissionRequest()
-                }
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SafetyRed
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LocationOn,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("GRANT LOCATION PERMISSION", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
             Text(
-                text = if (locationPermissions.allPermissionsGranted) "Continue" else "Allow Access",
-                fontSize = 18.sp
+                text = "Tap the button above and select \"Allow only while using the app\"",
+                fontSize = 12.sp,
+                color = CharcoalLight,
+                textAlign = TextAlign.Center
             )
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        TextButton(
-            onClick = onSkip,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Skip for Now")
+        } else {
+            // Permission granted - show success and continue
+            Button(
+                onClick = onContinue,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = SuccessGreen
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("CONTINUE", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 
+    // Auto-continue when permission granted
     LaunchedEffect(locationPermissions.allPermissionsGranted) {
         if (locationPermissions.allPermissionsGranted) {
             kotlinx.coroutines.delay(500)
@@ -765,16 +889,18 @@ private fun SmsCallPermissionStep(
         Icon(
             imageVector = Icons.Default.Notifications,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            tint = SafetyRed,
             modifier = Modifier.size(80.dp)
         )
 
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "SMS & Call Access",
+            text = "SMS & CALL ACCESS",
             fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            color = SafetyRed,
+            letterSpacing = 1.sp
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -782,7 +908,7 @@ private fun SmsCallPermissionStep(
         Text(
             text = "Grant SMS and Call access to send automatic alerts if you trigger SOS or face a threat situation.",
             fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = CharcoalMedium,
             textAlign = TextAlign.Center
         )
 
@@ -791,8 +917,10 @@ private fun SmsCallPermissionStep(
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer
-            )
+                containerColor = TrustBlueLight.copy(alpha = 0.2f)
+            ),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, TrustBlue)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp)
@@ -816,11 +944,15 @@ private fun SmsCallPermissionStep(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = TrustBlue
+            )
         ) {
             Text(
-                text = if (smsCallPermissions.allPermissionsGranted) "Continue" else "Allow Access",
-                fontSize = 18.sp
+                text = if (smsCallPermissions.allPermissionsGranted) "CONTINUE" else "ALLOW ACCESS",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
             )
         }
 
@@ -830,7 +962,7 @@ private fun SmsCallPermissionStep(
             onClick = onSkip,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Skip for Now")
+            Text("SKIP FOR NOW")
         }
     }
 
@@ -855,17 +987,18 @@ private fun CompletionStep(onFinish: () -> Unit) {
         Icon(
             imageVector = Icons.Default.Check,
             contentDescription = null,
-            tint = Color(0xFF4CAF50),
+            tint = SuccessGreen,
             modifier = Modifier.size(120.dp)
         )
 
         Spacer(modifier = Modifier.height(32.dp))
 
         Text(
-            text = "All Set!",
+            text = "ALL SET!",
             fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF4CAF50)
+            fontWeight = FontWeight.ExtraBold,
+            color = SuccessGreen,
+            letterSpacing = 1.sp
         )
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -873,7 +1006,7 @@ private fun CompletionStep(onFinish: () -> Unit) {
         Text(
             text = "Great! Your app will now send automated real-time alerts to selected contacts in case of emergency.",
             fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            color = CharcoalMedium,
             textAlign = TextAlign.Center
         )
 
@@ -882,24 +1015,26 @@ private fun CompletionStep(onFinish: () -> Unit) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            )
+                containerColor = SafetyRed.copy(alpha = 0.2f)
+            ),
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, SafetyRed)
         ) {
             Column(
                 modifier = Modifier.padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "💡 Quick Tip",
+                    text = "💡 QUICK TIP",
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = SafetyRed
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                     text = "You can update contacts or permissions anytime in Settings",
                     fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = CharcoalMedium,
                     textAlign = TextAlign.Center
                 )
             }
@@ -914,10 +1049,10 @@ private fun CompletionStep(onFinish: () -> Unit) {
                 .height(56.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = Color(0xFF4CAF50)
+                containerColor = SuccessGreen
             )
         ) {
-            Text("Finish Setup", fontSize = 18.sp)
+            Text("FINISH SETUP", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:scaleX="0.8"
+        android:scaleY="0.8"
+        android:translateX="10.8"
+        android:translateY="10.8">
+
+        <!-- Border Circle -->
+        <path
+            android:strokeColor="#3D3D3D"
+            android:strokeWidth="3"
+            android:fillColor="@android:color/transparent"
+            android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0" />
+
+        <!-- 404 Text - Main (Black) -->
+        <group>
+            <!-- "4" left -->
+            <path
+                android:fillColor="#2D2D2D"
+                android:pathData="M 28,36 L 28,48 L 20,48 L 20,52 L 28,52 L 28,58 L 34,58 L 34,52 L 36,52 L 36,48 L 34,48 L 34,34 L 28,34 Z M 28,40 L 28,48 L 25,48 L 28,40 Z" />
+
+            <!-- "0" center -->
+            <path
+                android:fillColor="#2D2D2D"
+                android:pathData="M 54,34 C 44,34 40,39 40,47 C 40,55 44,60 54,60 C 64,60 68,55 68,47 C 68,39 64,34 54,34 Z M 54,40 C 59,40 62,43 62,47 C 62,51 59,54 54,54 C 49,54 46,51 46,47 C 46,43 49,40 54,40 Z" />
+
+            <!-- "4" right -->
+            <path
+                android:fillColor="#2D2D2D"
+                android:pathData="M 72,36 L 72,48 L 64,48 L 64,52 L 72,52 L 72,58 L 78,58 L 78,52 L 80,52 L 80,48 L 78,48 L 78,34 L 72,34 Z M 72,40 L 72,48 L 69,48 L 72,40 Z" />
+        </group>
+
+        <!-- Glitch Effect - Red offset -->
+        <group android:alpha="0.35">
+            <path
+                android:fillColor="#E53935"
+                android:pathData="M 29,35 L 29,47 L 21,47 L 21,51 L 29,51 L 29,57 L 35,57 L 35,51 L 37,51 L 37,47 L 35,47 L 35,33 L 29,33 Z" />
+            <path
+                android:fillColor="#E53935"
+                android:pathData="M 56,33 C 46,33 42,38 42,46 C 42,54 46,59 56,59 C 66,59 70,54 70,46 C 70,38 66,33 56,33 Z" />
+            <path
+                android:fillColor="#E53935"
+                android:pathData="M 74,35 L 74,47 L 66,47 L 66,51 L 74,51 L 74,57 L 80,57 L 80,51 L 82,51 L 82,47 L 80,47 L 80,33 L 74,33 Z" />
+        </group>
+
+        <!-- Glitch Effect - Cyan offset -->
+        <group android:alpha="0.35">
+            <path
+                android:fillColor="#00BCD4"
+                android:pathData="M 27,37 L 27,49 L 19,49 L 19,53 L 27,53 L 27,59 L 33,59 L 33,53 L 35,53 L 35,49 L 33,49 L 33,35 L 27,35 Z" />
+            <path
+                android:fillColor="#00BCD4"
+                android:pathData="M 52,35 C 42,35 38,40 38,48 C 38,56 42,61 52,61 C 62,61 66,56 66,48 C 66,40 62,35 52,35 Z" />
+            <path
+                android:fillColor="#00BCD4"
+                android:pathData="M 70,37 L 70,49 L 62,49 L 62,53 L 70,53 L 70,59 L 76,59 L 76,53 L 78,53 L 78,49 L 76,49 L 76,35 L 70,35 Z" />
+        </group>
+
+        <!-- "error" text -->
+        <path
+            android:fillColor="#5A5A5A"
+            android:pathData="M 37,64 L 37,68 L 44,68 L 44,66 L 39,66 L 39,65 L 43,65 L 43,64 Z
+                          M 46,64 L 46,68 L 48,68 L 48,67 L 51,68 L 53,68 L 49,66 L 53,64 Z
+                          M 55,64 L 55,68 L 57,68 L 57,67 L 60,68 L 62,68 L 58,66 L 62,64 Z
+                          M 64,64 C 62,64 60,65 60,66 C 60,67 62,68 64,68 C 66,68 68,67 68,66 C 68,65 66,64 64,64 Z M 64,65 C 65,65 67,65 67,66 C 67,67 65,67 64,67 C 63,67 61,67 61,66 C 61,65 63,65 64,65 Z" />
+    </group>
+</vector>

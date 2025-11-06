@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Original Material colors -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>
@@ -7,4 +8,50 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- ========================================
+         404Error Emergency Alert Theme Colors
+         ======================================== -->
+
+    <!-- PRIMARY - Safety Red -->
+    <color name="safety_red">#E53935</color>
+    <color name="safety_red_dark">#C62828</color>
+    <color name="safety_red_light">#EF5350</color>
+
+    <!-- SECONDARY - Amber Yellow -->
+    <color name="amber_yellow">#FDD835</color>
+    <color name="amber_yellow_dark">#FBC02D</color>
+    <color name="amber_yellow_light">#FFF59D</color>
+
+    <!-- ACCENT - Trust Blue -->
+    <color name="trust_blue">#1E88E5</color>
+    <color name="trust_blue_dark">#1565C0</color>
+    <color name="trust_blue_light">#42A5F5</color>
+
+    <!-- BACKGROUND & SURFACE -->
+    <color name="off_white">#F9FAFB</color>
+    <color name="light_gray">#ECEFF1</color>
+    <color name="medium_gray">#CFD8DC</color>
+
+    <!-- TEXT COLORS -->
+    <color name="charcoal">#212121</color>
+    <color name="charcoal_medium">#424242</color>
+    <color name="charcoal_light">#757575</color>
+
+    <!-- SEMANTIC COLORS -->
+    <color name="critical_red">#D32F2F</color>
+    <color name="warning_orange">#FF9800</color>
+    <color name="success_green">#4CAF50</color>
+    <color name="info_blue">#2196F3</color>
+
+    <!-- 404 ERROR THEME ACCENTS -->
+    <color name="error_code">#FF1744</color>
+    <color name="glitch_purple">#651FFF</color>
+    <color name="system_green">#00E676</color>
+    <color name="terminal_text">#00FF00</color>
+
+    <!-- DARK MODE (404 Style) -->
+    <color name="dark_bg">#1A1A1A</color>
+    <color name="dark_surface">#2D2D2D</color>
+    <color name="darker_surface">#0D0D0D</color>
 </resources>
