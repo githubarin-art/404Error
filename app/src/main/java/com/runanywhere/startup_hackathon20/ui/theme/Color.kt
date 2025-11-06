@@ -12,6 +12,38 @@ val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)
 
 // ========================================
+// MODERN PASTEL PALETTE (inspired by image)
+// ========================================
+
+// Soft Teal/Turquoise - Primary modern color
+val SoftTeal = Color(0xFF7FD4C1)           // Main teal from image
+val SoftTealDark = Color(0xFF5DB5A0)       // Darker shade
+val SoftTealLight = Color(0xFFA8E6D7)      // Lighter shade
+val SoftTealPale = Color(0xFFD4F5ED)       // Very light background
+
+// Soft Pink/Coral - Accent colors
+val SoftPink = Color(0xFFFFB8C3)           // Soft pink accent
+val SoftPinkDark = Color(0xFFFF9AAA)       // Darker pink
+val SoftPinkLight = Color(0xFFFFD4DC)      // Light pink
+val SoftPinkPale = Color(0xFFFFF0F3)       // Very light pink
+
+// Cream/Yellow - Secondary accent
+val SoftCream = Color(0xFFFFF8DC)          // Cream background
+val SoftYellow = Color(0xFFFFF4B2)         // Soft yellow
+val SoftYellowLight = Color(0xFFFFFADD)    // Very light yellow
+
+// Neutral modern colors
+val ModernWhite = Color(0xFFFAFAFA)        // Off-white
+val ModernGray = Color(0xFFF5F5F7)         // Very light gray
+val ModernGrayMedium = Color(0xFFE0E0E5)   // Medium gray
+val ModernGrayDark = Color(0xFF9E9EA3)     // Dark gray
+
+// Text colors for modern theme
+val ModernTextPrimary = Color(0xFF2C2C2E)  // Almost black
+val ModernTextSecondary = Color(0xFF636366) // Gray text
+val ModernTextTertiary = Color(0xFF8E8E93) // Light gray text
+
+// ========================================
 // 404Error Emergency Alert Theme Colors
 // ========================================
 

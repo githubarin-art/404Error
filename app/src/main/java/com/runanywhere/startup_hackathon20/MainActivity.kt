@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -56,19 +58,32 @@ fun GuardianApp() {
         mutableStateOf(sharedPrefs.getBoolean("onboarding_complete", false))
     }
 
-    if (!isOnboardingComplete) {
-        // Show onboarding
-        OnboardingScreen(
-            viewModel = viewModel,
-            onComplete = {
-                // Mark onboarding as complete
-                sharedPrefs.edit().putBoolean("onboarding_complete", true).apply()
-                isOnboardingComplete = true
-            }
-        )
-    } else {
-        // Show main app
-        SafetyApp(viewModel)
+    // Smooth transition between onboarding and main app
+    AnimatedContent(
+        targetState = isOnboardingComplete,
+        transitionSpec = {
+            fadeIn(
+                animationSpec = tween(600, easing = EaseInOut)
+            ) togetherWith fadeOut(
+                animationSpec = tween(600, easing = EaseInOut)
+            )
+        },
+        label = "app_transition"
+    ) { onboardingCompleteState ->
+        if (!onboardingCompleteState) {
+            // Show onboarding
+            OnboardingScreen(
+                viewModel = viewModel,
+                onComplete = {
+                    // Mark onboarding as complete
+                    sharedPrefs.edit().putBoolean("onboarding_complete", true).apply()
+                    isOnboardingComplete = true
+                }
+            )
+        } else {
+            // Show main app
+            SafetyApp(viewModel)
+        }
     }
 }
 
@@ -77,72 +92,146 @@ fun SafetyApp(viewModel: SafetyViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
 
     Scaffold(
-        containerColor = OffWhite,
+        containerColor = ModernWhite,
         bottomBar = {
-            NavigationBar(
-                containerColor = LightGray,
-                contentColor = Charcoal
+            Surface(
+                shadowElevation = 8.dp,
+                color = Color.White
             ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                    label = { Text("HOME", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = SafetyRed,
-                        selectedTextColor = SafetyRed,
-                        unselectedIconColor = CharcoalLight,
-                        unselectedTextColor = CharcoalLight,
-                        indicatorColor = SafetyRed.copy(alpha = 0.2f)
+                NavigationBar(
+                    containerColor = Color.White,
+                    contentColor = ModernTextPrimary,
+                    modifier = Modifier.height(72.dp)
+                ) {
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = "Home",
+                                modifier = Modifier.size(26.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                "HOME",
+                                fontWeight = if (selectedTab == 0) FontWeight.SemiBold else FontWeight.Normal,
+                                fontSize = 11.sp
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = SafetyRed,
+                            selectedTextColor = SafetyRed,
+                            unselectedIconColor = ModernTextTertiary,
+                            unselectedTextColor = ModernTextTertiary,
+                            indicatorColor = SafetyRed.copy(alpha = 0.1f)
+                        )
                     )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Person, contentDescription = "Contacts") },
-                    label = { Text("CONTACTS", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = TrustBlue,
-                        selectedTextColor = TrustBlue,
-                        unselectedIconColor = CharcoalLight,
-                        unselectedTextColor = CharcoalLight,
-                        indicatorColor = TrustBlue.copy(alpha = 0.2f)
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        icon = {
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = "Contacts",
+                                modifier = Modifier.size(26.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                "CONTACTS",
+                                fontWeight = if (selectedTab == 1) FontWeight.SemiBold else FontWeight.Normal,
+                                fontSize = 11.sp
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = SoftTeal,
+                            selectedTextColor = SoftTeal,
+                            unselectedIconColor = ModernTextTertiary,
+                            unselectedTextColor = ModernTextTertiary,
+                            indicatorColor = SoftTeal.copy(alpha = 0.1f)
+                        )
                     )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Warning, contentDescription = "Threat Analysis") },
-                    label = { Text("THREAT", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = AmberYellowDark,
-                        selectedTextColor = AmberYellowDark,
-                        unselectedIconColor = CharcoalLight,
-                        unselectedTextColor = CharcoalLight,
-                        indicatorColor = AmberYellow.copy(alpha = 0.2f)
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        icon = {
+                            Icon(
+                                Icons.Default.Warning,
+                                contentDescription = "Threat Analysis",
+                                modifier = Modifier.size(26.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                "THREAT",
+                                fontWeight = if (selectedTab == 2) FontWeight.SemiBold else FontWeight.Normal,
+                                fontSize = 11.sp
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = AmberYellowDark,
+                            selectedTextColor = AmberYellowDark,
+                            unselectedIconColor = ModernTextTertiary,
+                            unselectedTextColor = ModernTextTertiary,
+                            indicatorColor = AmberYellow.copy(alpha = 0.1f)
+                        )
                     )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("SETTINGS", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = CharcoalMedium,
-                        selectedTextColor = CharcoalMedium,
-                        unselectedIconColor = CharcoalLight,
-                        unselectedTextColor = CharcoalLight,
-                        indicatorColor = CharcoalLight.copy(alpha = 0.2f)
+                    NavigationBarItem(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        icon = {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                modifier = Modifier.size(26.dp)
+                            )
+                        },
+                        label = {
+                            Text(
+                                "SETTINGS",
+                                fontWeight = if (selectedTab == 3) FontWeight.SemiBold else FontWeight.Normal,
+                                fontSize = 11.sp
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = ModernTextSecondary,
+                            selectedTextColor = ModernTextSecondary,
+                            unselectedIconColor = ModernTextTertiary,
+                            unselectedTextColor = ModernTextTertiary,
+                            indicatorColor = ModernGrayMedium
+                        )
                     )
-                )
+                }
             }
         }
     ) { padding ->
-        when (selectedTab) {
-            0 -> EmergencyScreen(viewModel, Modifier.padding(padding))
-            1 -> ContactsScreen(viewModel, Modifier.padding(padding))
-            2 -> ThreatAnalysisScreen(viewModel, Modifier.padding(padding))
-            3 -> SettingsScreen(viewModel, Modifier.padding(padding))
+        // Smooth animated transitions between screens
+        AnimatedContent(
+            targetState = selectedTab,
+            transitionSpec = {
+                // Slide and fade animation
+                (slideInHorizontally(
+                    initialOffsetX = { fullWidth -> if (targetState > initialState) fullWidth else -fullWidth },
+                    animationSpec = tween(400, easing = EaseInOutCubic)
+                ) + fadeIn(
+                    animationSpec = tween(400)
+                )) togetherWith (slideOutHorizontally(
+                    targetOffsetX = { fullWidth -> if (targetState > initialState) -fullWidth else fullWidth },
+                    animationSpec = tween(400, easing = EaseInOutCubic)
+                ) + fadeOut(
+                    animationSpec = tween(400)
+                ))
+            },
+            label = "screen_transition"
+        ) { targetTab ->
+            when (targetTab) {
+                0 -> EmergencyScreen(viewModel, Modifier.padding(padding))
+                1 -> ContactsScreen(viewModel, Modifier.padding(padding))
+                2 -> ThreatAnalysisScreen(viewModel, Modifier.padding(padding))
+                3 -> SettingsScreen(viewModel, Modifier.padding(padding))
+            }
         }
     }
 }
