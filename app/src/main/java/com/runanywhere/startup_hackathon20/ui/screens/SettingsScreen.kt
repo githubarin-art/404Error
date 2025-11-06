@@ -375,14 +375,14 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
         },
         text = {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 item {
                     Text(
                         "Trigger Methods",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Charcoal
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 
@@ -393,8 +393,9 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Hidden Button", fontWeight = FontWeight.Medium)
-                            Text("Tap hidden emergency button", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Hidden Button", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Tap hidden emergency button", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = hiddenButtonEnabled, onCheckedChange = { hiddenButtonEnabled = it })
                     }
@@ -407,8 +408,9 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Long Press", fontWeight = FontWeight.Medium)
-                            Text("Hold button for 3 seconds", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Long Press", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Hold button for 3 seconds", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = longPressEnabled, onCheckedChange = { longPressEnabled = it })
                     }
@@ -421,8 +423,9 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Triple Tap", fontWeight = FontWeight.Medium)
-                            Text("Quickly tap 3 times", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Triple Tap", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Quickly tap 3 times", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = tripleTabEnabled, onCheckedChange = { tripleTabEnabled = it })
                     }
@@ -435,8 +438,9 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Shake Gesture", fontWeight = FontWeight.Medium)
-                            Text("Shake phone vigorously", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Shake Gesture", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Shake phone vigorously", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = shakeGestureEnabled, onCheckedChange = { shakeGestureEnabled = it })
                     }
@@ -449,8 +453,9 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Volume Buttons", fontWeight = FontWeight.Medium)
-                            Text("Press volume up 5 times", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Volume Buttons", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Press volume up 5 times", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = volumeButtonsEnabled, onCheckedChange = { volumeButtonsEnabled = it })
                     }
@@ -462,7 +467,7 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         "Additional Options",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Charcoal
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 
@@ -473,8 +478,9 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Silent Alarm Mode", fontWeight = FontWeight.Medium)
-                            Text("No sound or vibration", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Silent Alarm Mode", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("No sound or vibration", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = silentAlarmMode, onCheckedChange = { silentAlarmMode = it })
                     }
@@ -487,8 +493,9 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Haptic Feedback", fontWeight = FontWeight.Medium)
-                            Text("Vibrate on activation", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Haptic Feedback", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Vibrate on activation", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = hapticFeedback, onCheckedChange = { hapticFeedback = it })
                     }
@@ -541,7 +548,7 @@ fun ThreatProtocolDialog(onDismiss: () -> Unit) {
                         "Threat Sensitivity",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Charcoal
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -551,7 +558,7 @@ fun ThreatProtocolDialog(onDismiss: () -> Unit) {
                             else -> "Aggressive - Highly sensitive, triggers faster"
                         },
                         style = MaterialTheme.typography.bodySmall,
-                        color = CharcoalMedium
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Row(
@@ -588,8 +595,9 @@ fun ThreatProtocolDialog(onDismiss: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Auto-Escalation", fontWeight = FontWeight.Medium)
-                        Text("Automatically increase threat level over time", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                        Text("Auto-Escalation", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Automatically increase threat level over time", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(checked = autoEscalation, onCheckedChange = { autoEscalation = it })
                 }
@@ -601,7 +609,7 @@ fun ThreatProtocolDialog(onDismiss: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Escalation Delay", fontWeight = FontWeight.Medium)
+                            Text("Escalation Delay", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                             Text("$escalationDelay sec", color = TrustBlue, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -611,6 +619,7 @@ fun ThreatProtocolDialog(onDismiss: () -> Unit) {
                             valueRange = 30f..300f,
                             steps = 17
                         )
+                        Text("Time before threat level increases", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 
@@ -623,8 +632,9 @@ fun ThreatProtocolDialog(onDismiss: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Biometric Fallback", fontWeight = FontWeight.Medium)
-                        Text("Use fingerprint/face to cancel alarm", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                        Text("Biometric Fallback", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Use fingerprint/face to cancel alarm", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(checked = biometricFallback, onCheckedChange = { biometricFallback = it })
                 }
@@ -649,7 +659,7 @@ fun LocationSharingDialog(onDismiss: () -> Unit) {
     var updateInterval by remember { mutableStateOf(30) }
     var lowBatteryFallback by remember { mutableStateOf(true) }
     var geofenceEnabled by remember { mutableStateOf(false) }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -668,16 +678,16 @@ fun LocationSharingDialog(onDismiss: () -> Unit) {
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 // Location Mode
                 Text(
                     "Location Mode",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = Charcoal
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -686,8 +696,9 @@ fun LocationSharingDialog(onDismiss: () -> Unit) {
                     ) {
                         RadioButton(selected = locationMode == 0, onClick = { locationMode = 0 })
                         Column(modifier = Modifier.padding(start = 8.dp)) {
-                            Text("Live Sharing", fontWeight = FontWeight.Medium)
-                            Text("Continuous location updates", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Live Sharing", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Continuous location updates", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Row(
@@ -698,8 +709,9 @@ fun LocationSharingDialog(onDismiss: () -> Unit) {
                     ) {
                         RadioButton(selected = locationMode == 1, onClick = { locationMode = 1 })
                         Column(modifier = Modifier.padding(start = 8.dp)) {
-                            Text("Last Known Location", fontWeight = FontWeight.Medium)
-                            Text("Share most recent location", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Last Known Location", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Share most recent location", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                     Row(
@@ -710,12 +722,13 @@ fun LocationSharingDialog(onDismiss: () -> Unit) {
                     ) {
                         RadioButton(selected = locationMode == 2, onClick = { locationMode = 2 })
                         Column(modifier = Modifier.padding(start = 8.dp)) {
-                            Text("On Demand Only", fontWeight = FontWeight.Medium)
-                            Text("Only when emergency triggered", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("On Demand Only", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Only when emergency triggered", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
-                
+
                 if (locationMode == 0) {
                     Divider()
                     Column {
@@ -723,7 +736,7 @@ fun LocationSharingDialog(onDismiss: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Update Interval", fontWeight = FontWeight.Medium)
+                            Text("Update Interval", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                             Text("$updateInterval sec", color = TrustBlue, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -733,32 +746,34 @@ fun LocationSharingDialog(onDismiss: () -> Unit) {
                             valueRange = 5f..120f,
                             steps = 22
                         )
-                        Text("Lower = More battery drain", style = MaterialTheme.typography.bodySmall, color = CharcoalLight)
+                        Text("Lower = More battery drain", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                
+
                 Divider()
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Low Battery Fallback", fontWeight = FontWeight.Medium)
-                        Text("Reduce accuracy when battery low", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                        Text("Low Battery Fallback", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Reduce accuracy when battery low", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(checked = lowBatteryFallback, onCheckedChange = { lowBatteryFallback = it })
                 }
-                
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Geofence Alerts", fontWeight = FontWeight.Medium)
-                        Text("Alert when leaving safe zones", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                        Text("Geofence Alerts", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Alert when leaving safe zones", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(checked = geofenceEnabled, onCheckedChange = { geofenceEnabled = it })
                 }
@@ -786,7 +801,7 @@ fun PrivacySettingsDialog(onDismiss: () -> Unit) {
     var encryptLocal by remember { mutableStateOf(true) }
     var anonymizeData by remember { mutableStateOf(true) }
     var autoDelete by remember { mutableStateOf(30) }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -805,7 +820,7 @@ fun PrivacySettingsDialog(onDismiss: () -> Unit) {
         },
         text = {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 item {
                     Surface(
@@ -814,27 +829,28 @@ fun PrivacySettingsDialog(onDismiss: () -> Unit) {
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.Top
                         ) {
                             Icon(Icons.Default.Info, contentDescription = null, tint = TrustBlue, modifier = Modifier.size(20.dp))
                             Text(
                                 "Your privacy is our priority. All data is encrypted and never shared with third parties.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = CharcoalMedium
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
                 }
-                
+
                 item {
                     Text(
                         "Data Permissions",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Charcoal
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -842,13 +858,14 @@ fun PrivacySettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Location Sharing", fontWeight = FontWeight.Medium)
-                            Text("Required for emergency alerts", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Location Sharing", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Required for emergency alerts", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = locationSharing, onCheckedChange = { locationSharing = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -856,13 +873,14 @@ fun PrivacySettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Sensor Access", fontWeight = FontWeight.Medium)
-                            Text("For shake and motion detection", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Sensor Access", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("For shake and motion detection", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = sensorAccess, onCheckedChange = { sensorAccess = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -870,23 +888,24 @@ fun PrivacySettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Anonymous Analytics", fontWeight = FontWeight.Medium)
-                            Text("Help improve the app", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Anonymous Analytics", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Help improve the app", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = analytics, onCheckedChange = { analytics = it })
                     }
                 }
-                
+
                 item {
                     Divider()
                     Text(
                         "Data Security",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Charcoal
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -894,13 +913,14 @@ fun PrivacySettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Encrypt Local Data", fontWeight = FontWeight.Medium)
-                            Text("Encrypt all stored information", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Encrypt Local Data", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Encrypt all stored information", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = encryptLocal, onCheckedChange = { encryptLocal = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -908,20 +928,21 @@ fun PrivacySettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Anonymize Data", fontWeight = FontWeight.Medium)
-                            Text("Remove identifying information", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Anonymize Data", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Remove identifying information", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = anonymizeData, onCheckedChange = { anonymizeData = it })
                     }
                 }
-                
+
                 item {
                     Column {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Auto-Delete After", fontWeight = FontWeight.Medium)
+                            Text("Auto-Delete After", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                             Text("$autoDelete days", color = TrustBlue, fontWeight = FontWeight.Bold)
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -931,7 +952,7 @@ fun PrivacySettingsDialog(onDismiss: () -> Unit) {
                             valueRange = 7f..365f,
                             steps = 11
                         )
-                        Text("Emergency records will be deleted after this period", style = MaterialTheme.typography.bodySmall, color = CharcoalLight)
+                        Text("Emergency records will be deleted after this period", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
@@ -959,7 +980,7 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
     var escalationDelay by remember { mutableStateOf(2) }
     var repeatUntilAck by remember { mutableStateOf(true) }
     var messageTone by remember { mutableStateOf(1) } // 0=Formal, 1=Urgent, 2=Discreet
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -978,17 +999,17 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
         },
         text = {
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 item {
                     Text(
                         "Notification Channels",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Charcoal
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -996,13 +1017,14 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("SMS Message", fontWeight = FontWeight.Medium)
-                            Text("Send text messages to contacts", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("SMS Message", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Send text messages to contacts", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = smsEnabled, onCheckedChange = { smsEnabled = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1010,13 +1032,14 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Phone Call", fontWeight = FontWeight.Medium)
-                            Text("Call contacts directly", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Phone Call", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Call contacts directly", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = callEnabled, onCheckedChange = { callEnabled = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1024,13 +1047,14 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("In-App Notification", fontWeight = FontWeight.Medium)
-                            Text("Show notification in app", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("In-App Notification", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Show notification in app", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = inAppEnabled, onCheckedChange = { inAppEnabled = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1038,23 +1062,24 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Email", fontWeight = FontWeight.Medium)
-                            Text("Send email alerts", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Email", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Send email alerts", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = emailEnabled, onCheckedChange = { emailEnabled = it })
                     }
                 }
-                
+
                 item {
                     Divider()
                     Text(
                         "Message Tone",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Charcoal
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1080,17 +1105,17 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
                         )
                     }
                 }
-                
+
                 item {
                     Divider()
                     Text(
                         "Escalation Settings",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = Charcoal
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1098,13 +1123,14 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Enable Escalation", fontWeight = FontWeight.Medium)
-                            Text("Resend alerts if no response", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Enable Escalation", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Resend alerts if no response", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = escalationEnabled, onCheckedChange = { escalationEnabled = it })
                     }
                 }
-                
+
                 if (escalationEnabled) {
                     item {
                         Column {
@@ -1112,7 +1138,7 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Escalation Delay", fontWeight = FontWeight.Medium)
+                                Text("Escalation Delay", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                                 Text("$escalationDelay min", color = TrustBlue, fontWeight = FontWeight.Bold)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
@@ -1122,10 +1148,11 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
                                 valueRange = 1f..10f,
                                 steps = 8
                             )
+                            Text("Time before resending alerts", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1133,8 +1160,9 @@ fun NotificationSettingsDialog(onDismiss: () -> Unit) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Repeat Until Acknowledged", fontWeight = FontWeight.Medium)
-                            Text("Keep sending until contact responds", style = MaterialTheme.typography.bodySmall, color = CharcoalMedium)
+                            Text("Repeat Until Acknowledged", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Keep sending until contact responds", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = repeatUntilAck, onCheckedChange = { repeatUntilAck = it })
                     }
@@ -1171,81 +1199,81 @@ fun HelpSupportDialog(onDismiss: () -> Unit) {
         },
         text = {
             Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 // Quick Guide
                 Card(
                     colors = CardDefaults.cardColors(containerColor = TrustBlue.copy(alpha = 0.1f)),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             "Quick Start Guide",
                             fontWeight = FontWeight.Bold,
-                            color = Charcoal
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("1. Add emergency contacts in Contacts tab", style = MaterialTheme.typography.bodySmall)
-                        Text("2. Load AI model in Settings", style = MaterialTheme.typography.bodySmall)
-                        Text("3. Test the emergency button (don't send)", style = MaterialTheme.typography.bodySmall)
-                        Text("4. Enable location permissions for alerts", style = MaterialTheme.typography.bodySmall)
+                        Text("1. Add emergency contacts in Contacts tab", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                        Text("2. Load AI model in Settings", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                        Text("3. Test the emergency button (don't send)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                        Text("4. Enable location permissions for alerts", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
                     }
                 }
-                
+
                 Divider()
-                
+
                 // FAQ
                 Text(
                     "Common Questions",
                     fontWeight = FontWeight.Bold,
-                    color = Charcoal
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-                
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Q: How does the emergency alarm work?", fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                    Text(
-                        "A: When triggered, it immediately sends SMS with your location to all emergency contacts.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = CharcoalMedium
-                    )
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    Text("Q: Can I test without alerting contacts?", fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                    Text(
-                        "A: Currently, triggering the alarm will send real alerts. Future versions will have test mode.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = CharcoalMedium
-                    )
-                    
-                    Spacer(modifier = Modifier.height(4.dp))
-                    
-                    Text("Q: What if I have no internet?", fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                    Text(
-                        "A: SMS works without internet. The app will send last known location if GPS is unavailable.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = CharcoalMedium
-                    )
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Q: How does the emergency alarm work?", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            "A: When triggered, it immediately sends SMS with your location to all emergency contacts.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Q: Can I test without alerting contacts?", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            "A: Currently, triggering the alarm will send real alerts. Future versions will have test mode.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Q: What if I have no internet?", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            "A: SMS works without internet. The app will send last known location if GPS is unavailable.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-                
+
                 Divider()
-                
+
                 // Contact Support
                 Surface(
                     color = SuccessGreen.copy(alpha = 0.1f),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             "Need More Help?",
                             fontWeight = FontWeight.Bold,
-                            color = Charcoal
+                            color = MaterialTheme.colorScheme.onSurface
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             "Email: support@guardianai.app\nPhone: 1-800-GUARDIAN",
                             style = MaterialTheme.typography.bodySmall,
-                            color = CharcoalMedium
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -1461,12 +1489,12 @@ fun AboutDialog(onDismiss: () -> Unit) {
         text = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
                     "Version 1.0.0",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = CharcoalMedium
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
                 Divider(modifier = Modifier.padding(vertical = 8.dp))
@@ -1474,7 +1502,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 Text(
                     "Guardian AI is a personal safety application that uses AI to help protect you in emergency situations.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = CharcoalMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 
@@ -1483,7 +1511,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                 Text(
                     "Built with ❤️ for your safety",
                     style = MaterialTheme.typography.bodySmall,
-                    color = CharcoalLight,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
                 
@@ -1497,7 +1525,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
                         "⚠️ This app provides assistance but does not replace professional emergency services. Always call 911 in life-threatening situations.",
                         modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodySmall,
-                        color = CharcoalMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
