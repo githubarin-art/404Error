@@ -431,7 +431,10 @@ private fun PhoneNumberStep(
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = TrustBlue,
                 unfocusedBorderColor = MediumGray,
-                focusedLabelColor = TrustBlue
+                focusedLabelColor = TrustBlue,
+                focusedTextColor = Charcoal,
+                unfocusedTextColor = Charcoal,
+                cursorColor = TrustBlue
             )
         )
 
@@ -655,7 +658,15 @@ private fun AddContactDialog(
                     onValueChange = { name = it },
                     label = { Text("Name") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = TrustBlue,
+                        unfocusedBorderColor = MediumGray,
+                        focusedLabelColor = TrustBlue,
+                        focusedTextColor = Charcoal,
+                        unfocusedTextColor = Charcoal,
+                        cursorColor = TrustBlue
+                    )
                 )
 
                 OutlinedTextField(
@@ -664,7 +675,15 @@ private fun AddContactDialog(
                     label = { Text("Phone Number") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = TrustBlue,
+                        unfocusedBorderColor = MediumGray,
+                        focusedLabelColor = TrustBlue,
+                        focusedTextColor = Charcoal,
+                        unfocusedTextColor = Charcoal,
+                        cursorColor = TrustBlue
+                    )
                 )
 
                 OutlinedTextField(
@@ -673,7 +692,15 @@ private fun AddContactDialog(
                     label = { Text("Relationship") },
                     placeholder = { Text("Family, Friend, etc.") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = TrustBlue,
+                        unfocusedBorderColor = MediumGray,
+                        focusedLabelColor = TrustBlue,
+                        focusedTextColor = Charcoal,
+                        unfocusedTextColor = Charcoal,
+                        cursorColor = TrustBlue
+                    )
                 )
             }
         },

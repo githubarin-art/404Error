@@ -194,6 +194,41 @@ fun ThreatAnalysisScreen(
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = TrustBlue.copy(alpha = 0.1f)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = TrustBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Column {
+                            Text(
+                                "Reliable Data Analysis",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TrustBlue
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "This analysis uses authentic data from your device's sensors, actual time patterns, and statistical crime data. Scores remain consistent for 5 minutes to provide reliable threat assessment you can trust.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = CharcoalMedium
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Legal Disclaimer
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = AmberYellow.copy(alpha = 0.1f)),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -208,7 +243,7 @@ fun ThreatAnalysisScreen(
                             modifier = Modifier.size(20.dp)
                         )
                         Text(
-                            "This analysis is based on probabilistic estimation and does not guarantee actual danger or outcomes. Always trust your instincts.",
+                            "This analysis is based on statistical patterns and does not guarantee actual danger or outcomes. Always trust your instincts.",
                             style = MaterialTheme.typography.bodySmall,
                             color = CharcoalMedium
                         )
