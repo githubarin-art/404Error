@@ -2,6 +2,7 @@ package com.runanywhere.startup_hackathon20
 
 import android.content.Context
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
@@ -32,24 +33,68 @@ import com.runanywhere.startup_hackathon20.ui.screens.SettingsScreen
 import com.runanywhere.startup_hackathon20.ui.screens.ThreatAnalysisScreen
 import com.runanywhere.startup_hackathon20.ui.theme.Startup_hackathon20Theme
 import com.runanywhere.startup_hackathon20.ui.theme.*
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
+    private lateinit var safetyViewModel: SafetyViewModel
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             Startup_hackathon20Theme {
-                GuardianApp()
+                GuardianApp { viewModel ->
+                    // Store ViewModel reference for hardware button handling
+                    safetyViewModel = viewModel
+                }
             }
         }
+    }
+    
+    /**
+     * Handle hardware button presses (Volume buttons for answering safety questions)
+     * Volume Up = Yes
+     * Volume Down = No
+     * 
+     * This allows users to answer questions discreetly without looking at screen
+     */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        // Only handle volume buttons when a safety question is active
+        if (::safetyViewModel.isInitialized) {
+            val currentQuestion = safetyViewModel.currentQuestion.value
+            
+            if (currentQuestion != null) {
+                when (keyCode) {
+                    KeyEvent.KEYCODE_VOLUME_UP -> {
+                        // Volume Up = YES
+                        Log.i("MainActivity", " Volume UP pressed - Answering YES to safety question")
+                        safetyViewModel.answerProtocolQuestionYes()
+                        return true // Consume the event
+                    }
+                    KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                        // Volume Down = NO
+                        Log.i("MainActivity", " Volume DOWN pressed - Answering NO to safety question")
+                        safetyViewModel.answerProtocolQuestionNo()
+                        return true // Consume the event
+                    }
+                }
+            }
+        }
+        
+        return super.onKeyDown(keyCode, event)
     }
 }
 
 @Composable
-fun GuardianApp() {
+fun GuardianApp(onViewModelCreated: (SafetyViewModel) -> Unit = {}) {
     val context = LocalContext.current
     val viewModel: SafetyViewModel = viewModel(
         factory = SafetyViewModelFactory(context)
     )
+    
+    // Notify MainActivity about ViewModel creation
+    LaunchedEffect(viewModel) {
+        onViewModelCreated(viewModel)
+    }
 
     // Check if onboarding is complete
     val sharedPrefs = context.getSharedPreferences("guardian_prefs", Context.MODE_PRIVATE)

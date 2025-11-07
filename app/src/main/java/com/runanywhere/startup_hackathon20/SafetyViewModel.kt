@@ -25,6 +25,7 @@ import com.google.android.gms.tasks.CancellationTokenSource
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import com.runanywhere.startup_hackathon20.utils.ShakeDetector
 
 /**
  * Main ViewModel for Safety App
@@ -39,9 +40,16 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         private const val TAG = "SafetyViewModel"
         private const val PREFS_NAME = "SafetyAppPrefs"
         private const val KEY_EMERGENCY_CONTACTS = "emergencyContacts"
+        private const val KEY_SHAKE_ENABLED = "shakeGestureEnabled"
     }
 
     private val aiEngine = SafetyAIEngine()
+
+    // Shake detector
+    private var shakeDetector: ShakeDetector? = null
+    private val _isShakeEnabled = MutableStateFlow(false)
+    val isShakeEnabled: StateFlow<Boolean> = _isShakeEnabled.asStateFlow()
+    val sosShakeGestureEnabled: StateFlow<Boolean> = _isShakeEnabled.asStateFlow()
 
     // Emergency session state
     private val _currentSession = MutableStateFlow<EmergencySession?>(null)
@@ -88,6 +96,72 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
         // Check location availability on startup
         checkLocationAvailability()
+
+        // Initialize shake detector
+        initializeShakeDetector()
+
+        // Load shake gesture preference
+        loadShakeGesturePreference()
+    }
+
+    /**
+     * Initialize shake detector
+     */
+    private fun initializeShakeDetector() {
+        shakeDetector = ShakeDetector(context) {
+            // Shake detected - trigger emergency alarm
+            Log.i(TAG, "🔔 Shake gesture detected - triggering emergency alarm")
+            triggerEmergencyAlarm()
+        }
+
+        if (!shakeDetector!!.isSupported()) {
+            Log.w(TAG, "⚠️ Shake detection not supported on this device")
+        }
+    }
+
+    /**
+     * Enable or disable shake gesture for emergency activation
+     */
+    fun setShakeGestureEnabled(enabled: Boolean) {
+        _isShakeEnabled.value = enabled
+
+        if (enabled) {
+            shakeDetector?.start()
+            Log.i(TAG, "✅ Shake gesture ENABLED - shake phone to trigger emergency")
+        } else {
+            shakeDetector?.stop()
+            Log.i(TAG, "🛑 Shake gesture DISABLED")
+        }
+
+        // Save preference
+        saveShakeGesturePreference(enabled)
+    }
+
+    fun setSOSShakeGestureEnabled(enabled: Boolean) {
+        setShakeGestureEnabled(enabled)
+    }
+
+    /**
+     * Load shake gesture preference from storage
+     */
+    private fun loadShakeGesturePreference() {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val enabled = prefs.getBoolean(KEY_SHAKE_ENABLED, false)
+
+        if (enabled) {
+            setShakeGestureEnabled(true)
+        }
+
+        Log.i(TAG, "Shake gesture preference loaded: ${if (enabled) "ENABLED" else "DISABLED"}")
+    }
+
+    /**
+     * Save shake gesture preference to storage
+     */
+    private fun saveShakeGesturePreference(enabled: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(KEY_SHAKE_ENABLED, enabled).apply()
+        Log.i(TAG, "💾 Shake gesture preference saved: ${if (enabled) "ENABLED" else "DISABLED"}")
     }
 
     /**
@@ -1146,6 +1220,9 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         super.onCleared()
         questionTimerJob?.cancel()
         escalationMonitorJob?.cancel()
+
+        // Stop shake detector when ViewModel is cleared
+        shakeDetector?.stop()
     }
 
     /**

@@ -574,6 +574,37 @@ private fun QuestionCard(
                     }
                 }
             }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Volume button hint
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFF5F5F5)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFF666666)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "Use Volume Up/Down buttons to answer discreetly",
+                        fontSize = 12.sp,
+                        color = Color(0xFF666666),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }

@@ -321,7 +321,7 @@ fun SettingsScreen(
     }
     
     if (showSOSDialog) {
-        SOSActivationDialog(onDismiss = { showSOSDialog = false })
+        SOSActivationDialog(viewModel = viewModel, onDismiss = { showSOSDialog = false })
     }
     
     if (showThreatProtocolDialog) {
@@ -348,15 +348,18 @@ fun SettingsScreen(
 // ... existing code (SectionHeader, SettingsItem) ...
 
 @Composable
-fun SOSActivationDialog(onDismiss: () -> Unit) {
+fun SOSActivationDialog(
+    viewModel: SafetyViewModel,
+    onDismiss: () -> Unit
+) {
     var hiddenButtonEnabled by remember { mutableStateOf(true) }
     var longPressEnabled by remember { mutableStateOf(true) }
     var tripleTabEnabled by remember { mutableStateOf(false) }
-    var shakeGestureEnabled by remember { mutableStateOf(false) }
+    val shakeGestureEnabled by viewModel.sosShakeGestureEnabled.collectAsState()
     var volumeButtonsEnabled by remember { mutableStateOf(false) }
     var silentAlarmMode by remember { mutableStateOf(false) }
     var hapticFeedback by remember { mutableStateOf(true) }
-    
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -385,7 +388,7 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -400,7 +403,7 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         Switch(checked = hiddenButtonEnabled, onCheckedChange = { hiddenButtonEnabled = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -415,7 +418,7 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         Switch(checked = longPressEnabled, onCheckedChange = { longPressEnabled = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -430,7 +433,7 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         Switch(checked = tripleTabEnabled, onCheckedChange = { tripleTabEnabled = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -442,10 +445,13 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text("Shake phone vigorously", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        Switch(checked = shakeGestureEnabled, onCheckedChange = { shakeGestureEnabled = it })
+                        Switch(
+                            checked = shakeGestureEnabled,
+                            onCheckedChange = { enabled -> viewModel.setSOSShakeGestureEnabled(enabled) }
+                        )
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -455,12 +461,16 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Volume Buttons", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("Press volume up 5 times", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                "Answer questions discreetly (Up=Yes, Down=No)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         Switch(checked = volumeButtonsEnabled, onCheckedChange = { volumeButtonsEnabled = it })
                     }
                 }
-                
+
                 item {
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
                     Text(
@@ -470,7 +480,7 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -485,7 +495,7 @@ fun SOSActivationDialog(onDismiss: () -> Unit) {
                         Switch(checked = silentAlarmMode, onCheckedChange = { silentAlarmMode = it })
                     }
                 }
-                
+
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
