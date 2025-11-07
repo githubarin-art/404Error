@@ -176,7 +176,9 @@ private fun NormalModeUI(
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
-                    text = if (isModelLoaded) "System initialized" else "System offline",
+                    text = if (isModelLoaded) {
+                        if (isStealthMode) "System monitoring" else "System initialized"
+                    } else "System offline",
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color(0xFF2D2D2D),
                     fontWeight = FontWeight.Bold
@@ -188,7 +190,7 @@ private fun NormalModeUI(
 
         // Main 404 Button - Large circular button with gray outline
         Circular404Button(
-            enabled = isModelLoaded && !isStealthMode,
+            enabled = isModelLoaded,
             onClick = onEmergencyTrigger,
             isStealthMode = isStealthMode
         )
@@ -196,7 +198,7 @@ private fun NormalModeUI(
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = if (isStealthMode) "system error - retry later" else "tap to retry connection",
+            text = if (isStealthMode) "tap to re-send alerts" else "tap to retry connection",
             style = MaterialTheme.typography.bodySmall,
             color = Color(0xFF888888),
             textAlign = TextAlign.Center,
@@ -281,17 +283,17 @@ private fun Circular404Button(
                 .size(200.dp),
             shape = CircleShape,
             color = Color.White,
-            shadowElevation = if (enabled && !isStealthMode) 4.dp else 0.dp,
+            shadowElevation = if (enabled) 4.dp else 0.dp,
             border = BorderStroke(
                 width = 3.dp,
-                color = if (enabled && !isStealthMode) Color(0xFFCCCCCC) else Color(0xFFE0E0E0)
+                color = if (enabled) Color(0xFFCCCCCC) else Color(0xFFE0E0E0)
             )
         ) {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(enabled = enabled && !isStealthMode) { onClick() }
+                    .clickable(enabled = enabled) { onClick() }
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onTap = {
@@ -310,7 +312,7 @@ private fun Circular404Button(
                                 }
                             },
                             onLongPress = {
-                                if (enabled && !isStealthMode) onClick()
+                                if (enabled) onClick()
                             }
                         )
                     }
@@ -323,7 +325,7 @@ private fun Circular404Button(
                         text = "404",
                         fontSize = 72.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (enabled && !isStealthMode) Color(0xFFCCCCCC) else Color(
+                        color = if (enabled) Color(0xFFCCCCCC) else Color(
                             0xFFE0E0E0
                         ),
                         textAlign = TextAlign.Center,
@@ -333,7 +335,7 @@ private fun Circular404Button(
                     Text(
                         text = "error",
                         fontSize = 16.sp,
-                        color = if (enabled && !isStealthMode) Color(0xFF999999) else Color(
+                        color = if (enabled) Color(0xFF999999) else Color(
                             0xFFCCCCCC
                         ),
                         fontWeight = FontWeight.Normal,

@@ -41,6 +41,10 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         private const val PREFS_NAME = "SafetyAppPrefs"
         private const val KEY_EMERGENCY_CONTACTS = "emergencyContacts"
         private const val KEY_SHAKE_ENABLED = "shakeGestureEnabled"
+        private const val KEY_LAST_LATITUDE = "lastLatitude"
+        private const val KEY_LAST_LONGITUDE = "lastLongitude"
+        private const val KEY_LAST_ACCURACY = "lastAccuracy"
+        private const val KEY_LAST_LOCATION_TIME = "lastLocationTime"
     }
 
     private val aiEngine = SafetyAIEngine()
@@ -89,6 +93,7 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
     private var questionTimerJob: Job? = null
     private var escalationMonitorJob: Job? = null
+    private var autoRetriggerJob: Job? = null
 
     init {
         // Load emergency contacts from storage
@@ -194,7 +199,10 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                 }
 
                 if (_isAlarmActive.value) {
-                    Log.w(TAG, "Alarm already active")
+                    // Alarm already active - re-send emergency alerts
+                    Log.i(TAG, "Alarm already active - re-sending emergency alerts")
+                    _statusMessage.value = "🚨 Re-sending emergency alerts"
+                    sendImmediateEmergencyAlerts()
                     return@launch
                 }
 
@@ -289,6 +297,14 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                         TAG,
                         "  Retry $retries/6: ${if (location != null) "Got location!" else "Still waiting..."}"
                     )
+                }
+            }
+
+            // If still no location, try cached last known
+            if (location == null) {
+                location = getCachedLastLocation()
+                if (location != null) {
+                    Log.i(TAG, "✅ Using cached last known location for emergency SMS")
                 }
             }
 
@@ -693,6 +709,29 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                 }
             }
         }
+
+        // Start auto re-trigger for high threat
+        startAutoRetriggerMonitoring()
+    }
+
+    /**
+     * Automatically re-send emergency alerts every 5 minutes if threat is HIGH
+     */
+    private fun startAutoRetriggerMonitoring() {
+        autoRetriggerJob?.cancel()
+        autoRetriggerJob = viewModelScope.launch {
+            while (_isAlarmActive.value) {
+                delay(300000) // 5 minutes
+
+                val session = _currentSession.value ?: continue
+
+                if (session.currentThreatLevel == ThreatLevel.HIGH) {
+                    Log.i(TAG, "🚨 HIGH THREAT: Auto re-sending emergency alerts")
+                    _statusMessage.value = "🚨 Auto re-sending alerts (high threat)"
+                    sendImmediateEmergencyAlerts()
+                }
+            }
+        }
     }
 
     /**
@@ -703,6 +742,7 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
             _isAlarmActive.value = false
             questionTimerJob?.cancel()
             escalationMonitorJob?.cancel()
+            autoRetriggerJob?.cancel()
 
             val session = _currentSession.value
             if (session != null) {
@@ -972,12 +1012,13 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                 val networkEnabled =
                     locationManager.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER)
 
-                Log.i(TAG, "GPS Provider: ${if (gpsEnabled) "Enabled" else "Disabled"}")
-                Log.i(TAG, "Network Provider: ${if (networkEnabled) "Enabled" else "Disabled"}")
+                Log.i(TAG, "Device Location Services:")
+                Log.i(TAG, "  GPS Provider: ${if (gpsEnabled) "Enabled" else "Disabled"}")
+                Log.i(TAG, "  Network Provider: ${if (networkEnabled) "Enabled" else "Disabled"}")
 
                 if (!gpsEnabled && !networkEnabled) {
                     Log.w(TAG, "⚠️ All location providers are disabled on device")
-                    Log.w(TAG, "User needs to enable Location in device Settings")
+                    Log.w(TAG, "User needs to enable Location in Device Settings")
                 }
             }
 
@@ -999,6 +1040,50 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         if (session != null) {
             _currentSession.value = session.copy(location = location)
         }
+
+        // Cache location in SharedPreferences
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().apply {
+            putFloat(KEY_LAST_LATITUDE, location.latitude.toFloat())
+            putFloat(KEY_LAST_LONGITUDE, location.longitude.toFloat())
+            putFloat(KEY_LAST_ACCURACY, location.accuracy)
+            putLong(KEY_LAST_LOCATION_TIME, location.time)
+            apply()
+        }
+        Log.i(TAG, "💾 Cached last known location: ${location.latitude}, ${location.longitude}")
+    }
+
+    /**
+     * Get cached last known location from SharedPreferences
+     * Returns null if no cached location or if too old (>1 hour)
+     */
+    private fun getCachedLastLocation(): Location? {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        val latitude = prefs.getFloat(KEY_LAST_LATITUDE, 0f).toDouble()
+        val longitude = prefs.getFloat(KEY_LAST_LONGITUDE, 0f).toDouble()
+        val accuracy = prefs.getFloat(KEY_LAST_ACCURACY, 0f)
+        val time = prefs.getLong(KEY_LAST_LOCATION_TIME, 0L)
+
+        if (time == 0L) {
+            Log.w(TAG, "No cached location available")
+            return null
+        }
+
+        val age = (System.currentTimeMillis() - time) / 1000 / 60 // minutes
+        if (age > 60) { // 1 hour max age for cached location
+            Log.w(TAG, "Cached location too old (${age} minutes) - discarding")
+            return null
+        }
+
+        val location = Location("cached")
+        location.latitude = latitude
+        location.longitude = longitude
+        location.accuracy = accuracy
+        location.time = time
+
+        Log.i(TAG, "Using cached location (age: ${age} minutes)")
+        return location
     }
 
     // ============ Model Management ============
@@ -1220,6 +1305,7 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         super.onCleared()
         questionTimerJob?.cancel()
         escalationMonitorJob?.cancel()
+        autoRetriggerJob?.cancel()
 
         // Stop shake detector when ViewModel is cleared
         shakeDetector?.stop()
@@ -1277,7 +1363,7 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
                 // Try to get last known location if we have permission
                 if (hasFine || hasCoarse) {
-                    fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+                    fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
                         if (location != null) {
                             val age =
                                 (System.currentTimeMillis() - location.time) / 1000 / 60 // minutes
