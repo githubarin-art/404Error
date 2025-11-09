@@ -68,12 +68,14 @@ class MainActivity : ComponentActivity() {
                         // Volume Up = YES
                         Log.i("MainActivity", " Volume UP pressed - Answering YES to safety question")
                         safetyViewModel.answerProtocolQuestionYes()
+                        safetyViewModel.registerUserInteraction()
                         return true // Consume the event
                     }
                     KeyEvent.KEYCODE_VOLUME_DOWN -> {
                         // Volume Down = NO
                         Log.i("MainActivity", " Volume DOWN pressed - Answering NO to safety question")
                         safetyViewModel.answerProtocolQuestionNo()
+                        safetyViewModel.registerUserInteraction()
                         return true // Consume the event
                     }
                 }

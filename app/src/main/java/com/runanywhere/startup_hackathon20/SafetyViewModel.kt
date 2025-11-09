@@ -26,6 +26,17 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.runanywhere.startup_hackathon20.utils.ShakeDetector
+// New imports for emergency path & features
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.MediaRecorder
+import android.media.RingtoneManager
+import android.os.VibrationEffect
+import android.os.Vibrator
+import java.util.Calendar
+import android.net.Uri
+import android.content.Intent
+import com.runanywhere.startup_hackathon20.utils.PermissionManager
 
 /**
  * Main ViewModel for Safety App
@@ -35,6 +46,15 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     // FusedLocationProviderClient for location tracking
     private val fusedLocationClient: FusedLocationProviderClient =
         LocationServices.getFusedLocationProviderClient(context)
+
+    // New vars for emergency path 2
+    private var continuousLocationJob: Job? = null
+    private var secondQuestionTimerJob: Job? = null
+    private var recordingJob: Job? = null
+    private var journeyMonitoringJob: Job? = null
+    private var mediaPlayer: MediaPlayer? = null
+    private var vibrator: Vibrator? = null
+    private var mediaRecorder: MediaRecorder? = null
 
     companion object {
         private const val TAG = "SafetyViewModel"
@@ -91,6 +111,46 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     private val _isAlarmActive = MutableStateFlow(false)
     val isAlarmActive: StateFlow<Boolean> = _isAlarmActive.asStateFlow()
 
+    // Emergency path 2 variables
+    private val _emergencyPath = MutableStateFlow(EmergencyPath.NONE)
+    val emergencyPath: StateFlow<EmergencyPath> = _emergencyPath.asStateFlow()
+
+    private val _secondQuestion = MutableStateFlow<ProtocolQuestion?>(null)
+    val secondQuestion: StateFlow<ProtocolQuestion?> = _secondQuestion.asStateFlow()
+
+    private val _secondQuestionTimeRemaining = MutableStateFlow<Int?>(null)
+    val secondQuestionTimeRemaining: StateFlow<Int?> = _secondQuestionTimeRemaining.asStateFlow()
+
+    private val _nearestSafePlaces = MutableStateFlow<List<SafePlace>>(emptyList())
+    val nearestSafePlaces: StateFlow<List<SafePlace>> = _nearestSafePlaces.asStateFlow()
+
+    private val _currentDestination = MutableStateFlow<SafePlace?>(null)
+    val currentDestination: StateFlow<SafePlace?> = _currentDestination.asStateFlow()
+
+    private val _isLoudAlarmActive = MutableStateFlow(false)
+    val isLoudAlarmActive: StateFlow<Boolean> = _isLoudAlarmActive.asStateFlow()
+
+    private val _isRecordingActive = MutableStateFlow(false)
+    val isRecordingActive: StateFlow<Boolean> = _isRecordingActive.asStateFlow()
+
+    private val _recordingDuration = MutableStateFlow(0)
+    val recordingDuration: StateFlow<Int> = _recordingDuration.asStateFlow()
+
+    private val _isFakeCallActive = MutableStateFlow(false)
+    val isFakeCallActive: StateFlow<Boolean> = _isFakeCallActive.asStateFlow()
+
+    private val _isBreathingActive = MutableStateFlow(false)
+    val isBreathingActive: StateFlow<Boolean> = _isBreathingActive.asStateFlow()
+
+    private val _showPoliceConfirmation = MutableStateFlow(false)
+    val showPoliceConfirmation: StateFlow<Boolean> = _showPoliceConfirmation.asStateFlow()
+
+    private val _showArrivalConfirmation = MutableStateFlow(false)
+    val showArrivalConfirmation: StateFlow<Boolean> = _showArrivalConfirmation.asStateFlow()
+
+    private val _interactionTimestamp = MutableStateFlow(System.currentTimeMillis())
+    val interactionTimestamp: StateFlow<Long> = _interactionTimestamp.asStateFlow()
+
     private var questionTimerJob: Job? = null
     private var escalationMonitorJob: Job? = null
     private var autoRetriggerJob: Job? = null
@@ -107,6 +167,8 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
         // Load shake gesture preference
         loadShakeGesturePreference()
+
+        vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
     }
 
     /**
@@ -496,6 +558,11 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
             // AI decides what to do
             makeAIDecision()
+
+            // Victim reported feeling safe – gracefully wind down session
+            _statusMessage.value = "Safety confirmed. Returning to standby..."
+            delay(1500)
+            cancelEmergencyAlarm()
         }
     }
 
@@ -530,8 +597,18 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
             _currentQuestion.value = null
             _questionTimeRemaining.value = null
 
-            // AI decides emergency actions
-            makeAIDecision()
+            // Send emergency SMS and calls
+            sendImmediateEmergencyAlerts()
+
+            _emergencyContacts.value.sortedBy { it.priority }.take(2).forEach { contact ->
+                makeCall(contact)
+            }
+
+            // Start continuous location tracking
+            startContinuousLocationTracking()
+
+            // Present second question instead of AI decision
+            presentSecondQuestion()
         }
     }
 
@@ -743,6 +820,10 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
             questionTimerJob?.cancel()
             escalationMonitorJob?.cancel()
             autoRetriggerJob?.cancel()
+            continuousLocationJob?.cancel()
+            journeyMonitoringJob?.cancel()
+            secondQuestionTimerJob?.cancel()
+            recordingJob?.cancel()
 
             val session = _currentSession.value
             if (session != null) {
@@ -756,6 +837,17 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
             _statusMessage.value = "Emergency alarm cancelled"
             _currentQuestion.value = null
             _questionTimeRemaining.value = null
+            _secondQuestion.value = null
+            _secondQuestionTimeRemaining.value = null
+            _emergencyPath.value = EmergencyPath.NONE
+            _nearestSafePlaces.value = emptyList()
+            _currentDestination.value = null
+            _alertHistory.value = emptyList()
+
+            stopLoudAlarm()
+            stopRecording()
+            _isFakeCallActive.value = false
+            _isBreathingActive.value = false
 
             Log.i(TAG, "Emergency session ended")
         }
@@ -1051,6 +1143,9 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
             apply()
         }
         Log.i(TAG, "💾 Cached last known location: ${location.latitude}, ${location.longitude}")
+
+        // Update nearest safe places for path 2
+        updateNearestSafePlaces()
     }
 
     /**
@@ -1301,11 +1396,413 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    // --- Emergency Path 2 Functions ---
+
+    private fun presentSecondQuestion() {
+        val question = ProtocolQuestion(
+            id = "threat_near",
+            question = "Is the threat near you right now?",
+            timeoutSeconds = 30,
+            threatLevelIfAnswered = ThreatLevel.HIGH,
+            threatLevelIfNotAnswered = ThreatLevel.CRITICAL
+        )
+        _secondQuestion.value = question
+        startSecondQuestionTimer(question.timeoutSeconds)
+    }
+
+    private fun startSecondQuestionTimer(seconds: Int) {
+        secondQuestionTimerJob?.cancel()
+        secondQuestionTimerJob = viewModelScope.launch {
+            var remaining = seconds
+            _secondQuestionTimeRemaining.value = remaining
+            while (remaining > 0) {
+                delay(1000)
+                remaining--
+                _secondQuestionTimeRemaining.value = remaining
+            }
+            handleSecondQuestionTimeout()
+        }
+    }
+
+    private fun handleSecondQuestionTimeout() {
+        viewModelScope.launch {
+            Log.w(TAG, "Second protocol question timeout - assuming threat nearby")
+            answerSecondQuestionYes()
+        }
+    }
+
+    fun answerSecondQuestionYes() {
+        secondQuestionTimerJob?.cancel()
+        val question = _secondQuestion.value ?: return
+        _secondQuestion.value = null
+        _secondQuestionTimeRemaining.value = null
+
+        _emergencyPath.value = EmergencyPath.THREAT_NEARBY
+        updateThreatLevel(ThreatLevel.CRITICAL)
+        updateNearestSafePlaces()
+        _statusMessage.value = "CRITICAL - THREAT NEARBY"
+        viewModelScope.launch {
+            makeAIDecision()
+        }
+    }
+
+    fun answerSecondQuestionNo() {
+        secondQuestionTimerJob?.cancel()
+        val question = _secondQuestion.value ?: return
+        _secondQuestion.value = null
+        _secondQuestionTimeRemaining.value = null
+
+        _emergencyPath.value = EmergencyPath.ESCAPE_TO_SAFETY
+        updateThreatLevel(ThreatLevel.HIGH)
+        updateNearestSafePlaces()
+        _statusMessage.value = "HIGH ALERT - ESCAPE TO SAFETY"
+        viewModelScope.launch {
+            makeAIDecision()
+        }
+    }
+
+    private fun startContinuousLocationTracking() {
+        continuousLocationJob?.cancel()
+        continuousLocationJob = viewModelScope.launch {
+            while (_isAlarmActive.value) {
+                startLocationMonitoring()
+                delay(30000)
+            }
+        }
+        Log.i(TAG, "✅ Continuous location tracking started (every 30s)")
+    }
+
+    private fun getSafePlaces(): List<SafePlace> {
+        // Hardcoded places for hackathon demo (Pune, India area)
+        return listOf(
+            SafePlace("Pune Police Station", "police", 18.5204, 73.8567, true, "Central Pune"),
+            SafePlace("Sassoon General Hospital", "hospital", 18.5260, 73.8710, true, "Near Station"),
+            SafePlace("Fire Brigade Station", "fire", 18.5314, 73.8443, true, "MG Road"),
+            SafePlace("24/7 Reliance Mart", "store", 18.5196, 73.8553, true, "FC Road"),
+            SafePlace("Amanora Mall", "mall", 18.5392, 73.8764, false, "Hadapsar"),
+            SafePlace("Hyatt Hotel", "hotel", 18.5605, 73.8100, true, "Airport Road"),
+            SafePlace("Dagadusheth Temple", "temple", 18.5153, 73.8389, false, "Old City"),
+            SafePlace("Pune Metro Station", "metro", 18.5308, 73.8475, false, "Pune Station")
+        )
+    }
+
+    private fun updateNearestSafePlaces() {
+        val currentLoc = _currentLocation.value ?: run {
+            Log.w(TAG, "Cannot update safe places - location unavailable")
+            return
+        }
+
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val isNight = hour < 6 || hour >= 22
+
+        val places = getSafePlaces().map { place ->
+            val placeLoc = Location("place")
+            placeLoc.latitude = place.latitude
+            placeLoc.longitude = place.longitude
+
+            place.distance = currentLoc.distanceTo(placeLoc)
+            place.walkingTimeMinutes = place.distance?.let { dist ->
+                (dist / 83.33f).toInt() // 5 km/h walking speed = 83.33 m/min
+            }
+
+            place
+        }.filter { if (isNight) it.is24_7 else true }
+
+        val prioritized = places.sortedWith(
+            compareBy<SafePlace> {
+                when (it.type) {
+                    "police" -> 0
+                    "hospital", "fire" -> 1
+                    else -> 2
+                }
+            }.thenBy { it.distance }
+        )
+
+        val takeCount = if (_emergencyPath.value == EmergencyPath.ESCAPE_TO_SAFETY) 5 else 3
+        _nearestSafePlaces.value = prioritized.take(takeCount)
+    }
+
+    fun toggleLoudAlarm() {
+        if (_isLoudAlarmActive.value) {
+            stopLoudAlarm()
+        } else {
+            startLoudAlarm()
+        }
+    }
+
+    private fun startLoudAlarm() {
+        _isLoudAlarmActive.value = true
+
+        try {
+            val alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                setDataSource(context, alarmUri)
+                setVolume(1.0f, 1.0f)
+                isLooping = true
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Unable to play alarm sound", e)
+            _statusMessage.value = "Alarm sound unavailable"
+        }
+
+        // Continuous vibration
+        vibrator?.let { vib ->
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vib.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 1000, 500), 0))
+            } else {
+                @Suppress("DEPRECATION")
+                vib.vibrate(longArrayOf(0, 1000, 500), 0)
+            }
+        }
+
+        Log.i(TAG, "🚨 Loud alarm activated")
+    }
+
+    private fun stopLoudAlarm() {
+        _isLoudAlarmActive.value = false
+        mediaPlayer?.let { player ->
+            try {
+                if (player.isPlaying) {
+                    player.stop()
+                }
+            } catch (e: IllegalStateException) {
+                Log.w(TAG, "Error stopping alarm player", e)
+            } finally {
+                player.release()
+                mediaPlayer = null
+            }
+        }
+        vibrator?.cancel()
+        Log.i(TAG, "🛑 Loud alarm deactivated")
+    }
+
+    fun toggleRecording() {
+        if (_isRecordingActive.value) {
+            stopRecording()
+        } else {
+            if (!PermissionManager.isPermissionGranted(context, Manifest.permission.RECORD_AUDIO)) {
+                _statusMessage.value = "Microphone permission required for recording evidence"
+                return
+            }
+            startRecording()
+        }
+    }
+
+    private fun startRecording() {
+        _isRecordingActive.value = true
+
+        val outputFile = "${context.externalCacheDir?.absolutePath}/evidence_${System.currentTimeMillis()}.3gp"
+
+        mediaRecorder = MediaRecorder().apply {
+            setAudioSource(MediaRecorder.AudioSource.MIC)
+            setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+            setOutputFile(outputFile)
+            prepare()
+            start()
+        }
+
+        // Start duration timer
+        _recordingDuration.value = 0
+        recordingJob = viewModelScope.launch {
+            var duration = 0
+            while (_isRecordingActive.value) {
+                delay(1000)
+                duration++
+                _recordingDuration.value = duration
+            }
+        }
+
+        Log.i(TAG, "🎤 Recording evidence started")
+    }
+
+    private fun stopRecording() {
+        _isRecordingActive.value = false
+        recordingJob?.cancel()
+        mediaRecorder?.apply {
+            stop()
+            release()
+        }
+        mediaRecorder = null
+        _recordingDuration.value = 0
+
+        // TODO: Auto-upload to cloud or contacts
+        Log.i(TAG, "🛑 Recording stopped - evidence saved")
+    }
+
+    fun startFakeCall() {
+        _isFakeCallActive.value = true
+        Log.i(TAG, "📞 Fake incoming call activated (from Dad)")
+        // UI should display realistic call screen with ringtone
+    }
+
+    fun stopFakeCall() {
+        _isFakeCallActive.value = false
+        Log.i(TAG, "🛑 Fake call deactivated")
+    }
+
+    fun startBreathingExercise() {
+        _isBreathingActive.value = true
+        Log.i(TAG, "🧘 Breathing exercise launched")
+        // UI should show animation and prompts
+    }
+
+    fun stopBreathingExercise() {
+        _isBreathingActive.value = false
+        Log.i(TAG, "🛑 Breathing exercise stopped")
+    }
+
+    fun requestCallPolice() {
+        _showPoliceConfirmation.value = true
+    }
+
+    fun confirmCallPolice(confirm: Boolean) {
+        _showPoliceConfirmation.value = false
+        if (confirm) {
+            callPolice()
+        }
+    }
+
+    private fun callPolice() {
+        if (!PermissionManager.isPermissionGranted(context, Manifest.permission.CALL_PHONE)) {
+            _statusMessage.value = "Call permission required to contact police"
+            return
+        }
+
+        val callIntent = Intent(Intent.ACTION_CALL).apply {
+            data = Uri.parse("tel:112")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        try {
+            context.startActivity(callIntent)
+            Log.i(TAG, "📞 Calling police (112)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to call police", e)
+            _statusMessage.value = "Unable to make call"
+        }
+    }
+
+    fun navigateToPlace(place: SafePlace) {
+        val uri = Uri.parse("google.navigation:q=${place.latitude},${place.longitude}&mode=w")
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+        intent.setPackage("com.google.android.apps.maps")
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+
+        try {
+            context.startActivity(intent)
+            _currentDestination.value = place
+            startJourneyMonitoring()
+            Log.i(TAG, "🗺️ Navigation to ${place.name} started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start navigation", e)
+            _statusMessage.value = "Google Maps required for navigation"
+        }
+    }
+
+    private fun startJourneyMonitoring() {
+        journeyMonitoringJob?.cancel()
+        journeyMonitoringJob = viewModelScope.launch {
+            var lastDistance: Float? = null
+            var lastTime = System.currentTimeMillis()
+
+            while (_currentDestination.value != null) {
+                delay(30000)
+
+                val currentLoc = _currentLocation.value ?: continue
+                val dest = _currentDestination.value ?: break
+                val destLoc = locationFromPlace(dest)
+                val currentDistance = currentLoc.distanceTo(destLoc)
+
+                if (lastDistance == null) {
+                    lastDistance = currentDistance
+                    lastTime = System.currentTimeMillis()
+                    sendLocationUpdateToContacts("Moving towards ${dest.name} - ${currentDistance.toInt()}m away")
+                    continue
+                }
+
+                val timeElapsed = (System.currentTimeMillis() - lastTime) / 1000f
+
+                if (currentDistance < 50) {
+                    _showArrivalConfirmation.value = true
+                    _currentDestination.value = null
+                    break
+                }
+
+                if (timeElapsed > 120 && kotlin.math.abs(currentDistance - lastDistance) < 10) {
+                    sendAlertToContacts("Stopped moving towards ${dest.name} for over 2 minutes")
+                }
+
+                if (currentDistance > lastDistance + 50) {
+                    sendAlertToContacts("Deviated from route to ${dest.name}")
+                }
+
+                sendLocationUpdateToContacts("Update: ${currentDistance.toInt()}m from ${dest.name}")
+
+                lastDistance = currentDistance
+                lastTime = System.currentTimeMillis()
+            }
+        }
+    }
+
+    fun confirmArrival(isSafe: Boolean) {
+        _showArrivalConfirmation.value = false
+        if (isSafe) {
+            cancelEmergencyAlarm()
+        } else {
+            _statusMessage.value = "Continue to safety"
+        }
+    }
+
+    fun registerUserInteraction() {
+        _interactionTimestamp.value = System.currentTimeMillis()
+    }
+
+    private fun locationFromPlace(place: SafePlace): Location {
+        val loc = Location("dest")
+        loc.latitude = place.latitude
+        loc.longitude = place.longitude
+        return loc
+    }
+
+    private fun sendLocationUpdateToContacts(message: String) {
+        val loc = _currentLocation.value
+        val fullMessage = "$message${loc?.let { "\nLocation: https://maps.google.com/?q=${it.latitude},${it.longitude}" } ?: ""}"
+
+        _emergencyContacts.value.forEach { contact ->
+            sendSMS(contact, fullMessage, false)
+        }
+    }
+
+    private fun sendAlertToContacts(message: String) {
+        val fullMessage = "URGENT ALERT: $message\nPlease check immediately!"
+        _emergencyContacts.value.forEach { contact ->
+            sendSMS(contact, fullMessage, true)
+        }
+    }
+
+    // --- End emergency path 2 ---
+
     override fun onCleared() {
         super.onCleared()
         questionTimerJob?.cancel()
         escalationMonitorJob?.cancel()
         autoRetriggerJob?.cancel()
+        continuousLocationJob?.cancel()
+        secondQuestionTimerJob?.cancel()
+        recordingJob?.cancel()
+        journeyMonitoringJob?.cancel()
+        stopLoudAlarm()
+        stopRecording()
 
         // Stop shake detector when ViewModel is cleared
         shakeDetector?.stop()

@@ -100,3 +100,22 @@ sealed class EmergencyAction {
     data class CallEmergencyServices(val serviceType: String, val location: Location?) : EmergencyAction()
     data class UpdateThreatLevel(val newLevel: ThreatLevel) : EmergencyAction()
 }
+
+// New additions for two-path system
+
+enum class EmergencyPath {
+    NONE,
+    THREAT_NEARBY,
+    ESCAPE_TO_SAFETY
+}
+
+data class SafePlace(
+    val name: String,
+    val type: String,
+    val latitude: Double,
+    val longitude: Double,
+    val is24_7: Boolean = false,
+    val address: String = "",
+    var distance: Float? = null,
+    var walkingTimeMinutes: Int? = null
+)
