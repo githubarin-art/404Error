@@ -117,5 +117,7 @@ data class SafePlace(
     val is24_7: Boolean = false,
     val address: String = "",
     var distance: Float? = null,
-    var walkingTimeMinutes: Int? = null
+    var walkingTimeMinutes: Int? = null,
+    val hours: String? = null,
+    val notes: String? = null
 )

@@ -28,8 +28,11 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Foreground Service -->
+    <!-- Foreground Service (Android 9+) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Foreground Service Types (Android 10+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <!-- Vibration for alerts -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -79,6 +82,18 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Emergency Foreground Service -->
+        <service
+            android:name=".services.EmergencyService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location|microphone"
+            android:description="@string/emergency_service_description"
+            tools:targetApi="q">
+            <!-- Service handles emergency monitoring, location tracking, and evidence recording -->
+        </service>
+
     </application>
 
 </manifest>
