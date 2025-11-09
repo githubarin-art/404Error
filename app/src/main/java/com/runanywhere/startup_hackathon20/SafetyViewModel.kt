@@ -154,6 +154,10 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     private var questionTimerJob: Job? = null
     private var escalationMonitorJob: Job? = null
     private var autoRetriggerJob: Job? = null
+    
+    // Cooldown before user can re-arm SOS after an emergency ends
+    private val _nextSOSAllowedAt = MutableStateFlow(0L)
+    val nextSOSAllowedAt: StateFlow<Long> = _nextSOSAllowedAt.asStateFlow()
 
     init {
         // Load emergency contacts from storage
@@ -236,18 +240,30 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
      * IMPORTANT: Only uses contacts that the user added during onboarding.
      * No sample or dummy data is used for actual calls and messages.
      *
-     * FLOW:
+     * FLOW (Updated as per product requirement):
      * 1. Validate model is loaded and contacts exist
-     * 2. Create emergency session
-     * 3. Start location monitoring IMMEDIATELY
-     * 4. IMMEDIATELY send SMS to ALL contacts with location (BEFORE questions)
-     * 5. Present protocol questions to assess threat level
-     * 6. AI makes decisions based on responses
-     * 7. Continue monitoring and escalating as needed
+     * 2. Enforce 10s cooldown if just ended a session
+     * 3. Create emergency session
+     * 4. Start location monitoring IMMEDIATELY
+     * 5. Present first protocol question (NO auto alert before Q1)
+     * 6. If Q1 = NO/timeout: send SMS to contacts (no calls yet), start continuous location
+     * 7. Present second question
+     * 8. If Q2 = YES (threat nearby): call top contacts
+     * 9. Continue monitoring and escalating as needed
      */
     fun triggerEmergencyAlarm() {
         viewModelScope.launch {
             try {
+                // Enforce 10s cooldown after previous emergency ended
+                val now = System.currentTimeMillis()
+                if (now < _nextSOSAllowedAt.value) {
+                    val waitMs = _nextSOSAllowedAt.value - now
+                    val waitSec = (waitMs / 1000).coerceAtLeast(1)
+                    _statusMessage.value = "Re-arming SOS… wait ${waitSec}s"
+                    Log.w(TAG, "SOS re-arm cooldown active: ${waitSec}s remaining")
+                    return@launch
+                }
+
                 if (!_isModelLoaded.value) {
                     _statusMessage.value = "Please load AI model first in settings"
                     return@launch
@@ -260,11 +276,15 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                     return@launch
                 }
 
+                // If alarm is already active, this is a re-trigger - we should NOT ignore it
+                // Instead, we continue with a NEW emergency session
                 if (_isAlarmActive.value) {
-                    // Alarm already active - re-send emergency alerts
-                    Log.i(TAG, "Alarm already active - re-sending emergency alerts")
-                    _statusMessage.value = "🚨 Re-sending emergency alerts"
-                    sendImmediateEmergencyAlerts()
+                    Log.i(TAG, "⚠️ Emergency already active - this appears to be a re-trigger")
+                    Log.i(
+                        TAG,
+                        "Note: Proper flow should cancel existing emergency first before re-triggering"
+                    )
+                    _statusMessage.value = "Emergency already active"
                     return@launch
                 }
 
@@ -302,23 +322,9 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                 startLocationMonitoring()
 
                 // Give location a very short time to initialize (only 1 second)
-                // The sendImmediateEmergencyAlerts has its own retry logic for location
                 delay(1000)
 
-                // Check if we got location quickly
-                val quickLocation = _currentLocation.value
-                if (quickLocation != null) {
-                    Log.i(TAG, "⚡ Location obtained quickly!")
-                    Log.i(TAG, "   Location: ${quickLocation.latitude}, ${quickLocation.longitude}")
-                } else {
-                    Log.i(TAG, "⏱️ Location still loading, will retry during SMS send...")
-                }
-
-                // IMMEDIATELY send emergency SMS to all contacts
-                // This function will wait for location if needed (up to 3 more seconds)
-                sendImmediateEmergencyAlerts()
-
-                // Generate and present protocol question
+                // Present first protocol question (NO auto-SMS before Q1)
                 presentProtocolQuestion()
 
                 // Start escalation monitoring
@@ -592,22 +598,26 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
             // No/timeout = high threat
             updateThreatLevel(ThreatLevel.HIGH)
 
-            _statusMessage.value = "High threat detected. Alerting contacts..."
+            _statusMessage.value = "High threat detected. Sending SMS to contacts..."
 
             _currentQuestion.value = null
             _questionTimeRemaining.value = null
 
-            // Send emergency SMS and calls
+            // IMMEDIATE ACTIONS as per new product flow:
+            // 1. Send emergency SMS to all contacts (NO CALLS YET)
+            Log.i(TAG, "========================================")
+            Log.i(TAG, "USER ANSWERED NO - SENDING SMS (calls deferred to Q2)")
+            Log.i(TAG, "========================================")
+            
             sendImmediateEmergencyAlerts()
 
-            _emergencyContacts.value.sortedBy { it.priority }.take(2).forEach { contact ->
-                makeCall(contact)
-            }
-
-            // Start continuous location tracking
+            // 2. Start continuous location tracking every 30 seconds
             startContinuousLocationTracking()
 
-            // Present second question instead of AI decision
+            Log.i(TAG, "✅ Emergency SMS sent, location tracking started")
+            Log.i(TAG, "Presenting second question: Is threat near you?")
+
+            // 3. Present second question instead of AI decision
             presentSecondQuestion()
         }
     }
@@ -816,7 +826,11 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
      */
     fun cancelEmergencyAlarm() {
         viewModelScope.launch {
-            _isAlarmActive.value = false
+            Log.i(TAG, "========================================")
+            Log.i(TAG, "CANCELING EMERGENCY SESSION")
+            Log.i(TAG, "========================================")
+
+            // Cancel all running jobs first
             questionTimerJob?.cancel()
             escalationMonitorJob?.cancel()
             autoRetriggerJob?.cancel()
@@ -834,7 +848,9 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                 sendCancellationNotifications()
             }
 
-            _statusMessage.value = "Emergency alarm cancelled"
+            // Reset ALL state to prepare for next emergency
+            _isAlarmActive.value = false
+            _currentSession.value = null
             _currentQuestion.value = null
             _questionTimeRemaining.value = null
             _secondQuestion.value = null
@@ -848,8 +864,17 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
             stopRecording()
             _isFakeCallActive.value = false
             _isBreathingActive.value = false
+            _showPoliceConfirmation.value = false
+            _showArrivalConfirmation.value = false
 
-            Log.i(TAG, "Emergency session ended")
+            // 10-second cooldown to prevent rapid SOS re-arms after emergency end
+            val cooldownMs = 10_000L
+            _nextSOSAllowedAt.value = System.currentTimeMillis() + cooldownMs
+
+            _statusMessage.value = "Ready. Stay safe."
+
+            Log.i(TAG, "✅ Emergency session completely reset - ready for new emergency")
+            Log.i(TAG, "========================================")
         }
     }
 
@@ -1400,13 +1425,25 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
     private fun presentSecondQuestion() {
         val question = ProtocolQuestion(
-            id = "threat_near",
+            id = "threat_proximity",
             question = "Is the threat near you right now?",
             timeoutSeconds = 30,
-            threatLevelIfAnswered = ThreatLevel.HIGH,
-            threatLevelIfNotAnswered = ThreatLevel.CRITICAL
+            threatLevelIfAnswered = ThreatLevel.CRITICAL, // YES = threat nearby = CRITICAL  
+            threatLevelIfNotAnswered = ThreatLevel.CRITICAL // Timeout defaults to YES (threat nearby)
         )
         _secondQuestion.value = question
+        _statusMessage.value = "Answer the proximity question"
+
+        Log.i(TAG, "========================================")
+        Log.i(TAG, "SECOND QUESTION PRESENTED")
+        Log.i(TAG, "========================================")
+        Log.i(TAG, "Question: ${question.question}")
+        Log.i(TAG, "Timeout: ${question.timeoutSeconds} seconds")
+        Log.i(TAG, "YES answer = THREAT NEARBY (CRITICAL)")
+        Log.i(TAG, "NO answer = ESCAPE TO SAFETY (HIGH)")
+        Log.i(TAG, "Timeout default = YES (CRITICAL - assumes threat nearby)")
+        Log.i(TAG, "========================================")
+
         startSecondQuestionTimer(question.timeoutSeconds)
     }
 
@@ -1440,8 +1477,13 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         _emergencyPath.value = EmergencyPath.THREAT_NEARBY
         updateThreatLevel(ThreatLevel.CRITICAL)
         updateNearestSafePlaces()
-        _statusMessage.value = "CRITICAL - THREAT NEARBY"
+        _statusMessage.value = "CRITICAL - THREAT NEARBY (calling top contacts)"
         viewModelScope.launch {
+            // Immediately call top 2 priority contacts when threat is nearby
+            _emergencyContacts.value.sortedBy { it.priority }.take(2).forEach { contact ->
+                makeCall(contact)
+                delay(1000)
+            }
             makeAIDecision()
         }
     }
@@ -1474,15 +1516,143 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
     private fun getSafePlaces(): List<SafePlace> {
         // Hardcoded places for hackathon demo (Pune, India area)
+        // Categorized and ranked by priority: police, hospital, 24/7 stores, transport, religious
         return listOf(
-            SafePlace("Pune Police Station", "police", 18.5204, 73.8567, true, "Central Pune"),
-            SafePlace("Sassoon General Hospital", "hospital", 18.5260, 73.8710, true, "Near Station"),
-            SafePlace("Fire Brigade Station", "fire", 18.5314, 73.8443, true, "MG Road"),
-            SafePlace("24/7 Reliance Mart", "store", 18.5196, 73.8553, true, "FC Road"),
-            SafePlace("Amanora Mall", "mall", 18.5392, 73.8764, false, "Hadapsar"),
-            SafePlace("Hyatt Hotel", "hotel", 18.5605, 73.8100, true, "Airport Road"),
-            SafePlace("Dagadusheth Temple", "temple", 18.5153, 73.8389, false, "Old City"),
-            SafePlace("Pune Metro Station", "metro", 18.5308, 73.8475, false, "Pune Station")
+            // Police stations (highest priority)
+            SafePlace(
+                name = "Pune City Police Station",
+                type = "police",
+                latitude = 18.5204,
+                longitude = 73.8567,
+                is24_7 = true,
+                address = "Central Pune, Near Railway Station",
+                hours = "24/7 Open",
+                notes = "Emergency response available"
+            ),
+            SafePlace(
+                name = "Shivajinagar Police Station",
+                type = "police",
+                latitude = 18.5304,
+                longitude = 73.8467,
+                is24_7 = true,
+                address = "Shivajinagar, JM Road",
+                hours = "24/7 Open",
+                notes = "Main city police station"
+            ),
+
+            // Hospitals
+            SafePlace(
+                name = "Sassoon General Hospital",
+                type = "hospital",
+                latitude = 18.5260,
+                longitude = 73.8710,
+                is24_7 = true,
+                address = "Near Pune Station",
+                hours = "24/7 Emergency",
+                notes = "Major public hospital"
+            ),
+            SafePlace(
+                name = "Ruby Hall Clinic",
+                type = "hospital",
+                latitude = 18.5196,
+                longitude = 73.8553,
+                is24_7 = true,
+                address = "Grant Road, Camp",
+                hours = "24/7 Emergency",
+                notes = "Well-staffed, safe area"
+            ),
+
+            // Fire stations
+            SafePlace(
+                name = "Fire Brigade Station",
+                type = "fire",
+                latitude = 18.5314,
+                longitude = 73.8443,
+                is24_7 = true,
+                address = "MG Road",
+                hours = "24/7 Open",
+                notes = "Emergency services"
+            ),
+
+            // 24/7 stores (populated, well-lit)
+            SafePlace(
+                name = "24/7 Reliance Mart",
+                type = "store",
+                latitude = 18.5196,
+                longitude = 73.8553,
+                is24_7 = true,
+                address = "FC Road, Deccan",
+                hours = "24/7",
+                notes = "Well-lit, security present"
+            ),
+            SafePlace(
+                name = "DMart Supermarket",
+                type = "store",
+                latitude = 18.5392,
+                longitude = 73.8764,
+                is24_7 = false,
+                address = "Hadapsar",
+                hours = "8 AM - 11 PM",
+                notes = "Busy shopping area"
+            ),
+
+            // Malls (populated areas)
+            SafePlace(
+                name = "Amanora Mall",
+                type = "mall",
+                latitude = 18.5392,
+                longitude = 73.8764,
+                is24_7 = false,
+                address = "Hadapsar",
+                hours = "11 AM - 10 PM",
+                notes = "Security guards, CCTV"
+            ),
+
+            // Hotels (safe, staffed)
+            SafePlace(
+                name = "Hyatt Regency Hotel",
+                type = "hotel",
+                latitude = 18.5605,
+                longitude = 73.8100,
+                is24_7 = true,
+                address = "Airport Road, Nagar Road",
+                hours = "24/7 Reception",
+                notes = "Secure, well-staffed"
+            ),
+
+            // Religious places
+            SafePlace(
+                name = "Dagadusheth Halwai Temple",
+                type = "temple",
+                latitude = 18.5153,
+                longitude = 73.8389,
+                is24_7 = false,
+                address = "Budhwar Peth, Old City",
+                hours = "6 AM - 10 PM",
+                notes = "Crowded, safe during hours"
+            ),
+
+            // Transport hubs (populated)
+            SafePlace(
+                name = "Pune Railway Station",
+                type = "metro",
+                latitude = 18.5308,
+                longitude = 73.8475,
+                is24_7 = true,
+                address = "Pune Station",
+                hours = "24/7",
+                notes = "RPF security, crowded"
+            ),
+            SafePlace(
+                name = "Swargate Bus Stand",
+                type = "transport",
+                latitude = 18.5018,
+                longitude = 73.8636,
+                is24_7 = true,
+                address = "Swargate",
+                hours = "24/7",
+                notes = "Major transport hub, police post"
+            )
         )
     }
 
@@ -1590,8 +1760,11 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         if (_isRecordingActive.value) {
             stopRecording()
         } else {
+            // Check permission before starting recording
             if (!PermissionManager.isPermissionGranted(context, Manifest.permission.RECORD_AUDIO)) {
                 _statusMessage.value = "Microphone permission required for recording evidence"
+                Log.w(TAG, "⚠️ RECORD_AUDIO permission denied - cannot start recording")
+                Log.w(TAG, "Alternative: User can use fake call or loud alarm features")
                 return
             }
             startRecording()

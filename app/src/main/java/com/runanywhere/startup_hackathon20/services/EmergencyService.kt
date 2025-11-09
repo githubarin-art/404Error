@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.location.Location
 import android.media.MediaRecorder
 import android.os.Build
@@ -19,7 +20,6 @@ import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
 import com.runanywhere.startup_hackathon20.MainActivity
-import com.runanywhere.startup_hackathon20.R
 import java.io.File
 
 /**
@@ -35,6 +35,12 @@ class EmergencyService : Service() {
         private const val TAG = "EmergencyService"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "emergency_channel"
+
+        // Android 10+ foreground service types
+        private val FOREGROUND_SERVICE_TYPE_LOCATION =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
+        private val FOREGROUND_SERVICE_TYPE_MICROPHONE =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
 
         const val ACTION_START_EMERGENCY = "action_start_emergency"
         const val ACTION_STOP_EMERGENCY = "action_stop_emergency"
@@ -89,7 +95,18 @@ class EmergencyService : Service() {
 
         // Start foreground service with notification
         val notification = createNotification("Emergency Active", "Monitoring your safety...")
-        startForeground(NOTIFICATION_ID, notification)
+
+        // Android 10+ requires foreground service type
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Use location + microphone foreground service types
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                FOREGROUND_SERVICE_TYPE_LOCATION or FOREGROUND_SERVICE_TYPE_MICROPHONE
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
 
         // Start location tracking
         startLocationTracking()
@@ -265,11 +282,18 @@ class EmergencyService : Service() {
                 description = "Critical emergency notifications"
                 setShowBadge(true)
                 enableVibration(true)
+                enableLights(true)
+                // Android 10+ foreground service channel importance
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    setBypassDnd(true) // Bypass Do Not Disturb
+                }
             }
 
             val notificationManager =
                 getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
+
+            Log.i(TAG, "Notification channel created with high importance")
         }
     }
 

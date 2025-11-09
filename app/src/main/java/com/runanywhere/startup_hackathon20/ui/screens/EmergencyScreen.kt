@@ -17,7 +17,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.awaitPointerEventScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -35,6 +34,8 @@ import com.runanywhere.startup_hackathon20.EmergencyPath
 import com.runanywhere.startup_hackathon20.SafePlace
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import android.util.Log
 
 @Composable
 fun EmergencyScreen(
@@ -64,10 +65,39 @@ fun EmergencyScreen(
 
     // Track if user manually requested stealth mode
     var userRequestedStealthMode by remember { mutableStateOf(false) }
-    var camouflageActive by rememberSaveable { mutableStateOf(false) }
-    var autoCamouflageStealth by rememberSaveable { mutableStateOf(false) }
-    var storedStealthState by rememberSaveable { mutableStateOf(false) }
+    
+    // Auto-camouflage state
+    var autoCamouflageActive by remember { mutableStateOf(false) }
+    var lastInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    
+    // Triple tap detection for restoring UI
+    var tapCount by remember { mutableIntStateOf(0) }
+    var lastTapTime by remember { mutableLongStateOf(0L) }
 
+    // Update last interaction time when user interacts
+    LaunchedEffect(interactionSignal) {
+        lastInteractionTime = interactionSignal
+        // If user interacts, disable auto-camouflage
+        if (autoCamouflageActive) {
+            autoCamouflageActive = false
+        }
+    }
+
+    // Auto-camouflage timer - activate after 30 seconds of inactivity
+    LaunchedEffect(isAlarmActive, lastInteractionTime) {
+        if (isAlarmActive && !userRequestedStealthMode) {
+            while (isAlarmActive) {
+                delay(1000) // Check every second
+                val timeSinceLastInteraction = System.currentTimeMillis() - lastInteractionTime
+                
+                // Activate camouflage after 30 seconds of inactivity
+                if (timeSinceLastInteraction > 30000 && !autoCamouflageActive) {
+                    autoCamouflageActive = true
+                    Log.i("EmergencyScreen", "🎭 Auto-camouflage activated after 30s inactivity")
+                }
+            }
+        }
+    }
 
     // Auto-hide after alerts sent and question answered (or timed out)
     LaunchedEffect(isAlarmActive, currentQuestion, alertHistory) {
@@ -83,15 +113,16 @@ fun EmergencyScreen(
         }
     }
 
-    // Reset stealth mode when alarm is cancelled
+    // Reset stealth mode and auto-camouflage when alarm is cancelled
     LaunchedEffect(isAlarmActive) {
         if (!isAlarmActive) {
             userRequestedStealthMode = false
+            autoCamouflageActive = false
         }
     }
 
     // Handle back button press - ONLY way to activate stealth mode manually
-    BackHandler(enabled = isAlarmActive && !userRequestedStealthMode) {
+    BackHandler(enabled = isAlarmActive && !userRequestedStealthMode && !autoCamouflageActive) {
         // User pressed back - activate stealth mode
         userRequestedStealthMode = true
         viewModel.enterStealthMode()
@@ -100,18 +131,8 @@ fun EmergencyScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(isAlarmActive, camouflageActive) {
-                awaitPointerEventScope {
-                    while (true) {
-                        awaitPointerEvent()
-                        if (isAlarmActive && !camouflageActive) {
-                            viewModel.registerUserInteraction()
-                        }
-                    }
-                }
-            }
             .background(
-                if (isAlarmActive && !userRequestedStealthMode) {
+                if (isAlarmActive && !userRequestedStealthMode && !autoCamouflageActive) {
                     // Simple clean background for emergency mode
                     Brush.verticalGradient(
                         colors = listOf(
@@ -130,52 +151,114 @@ fun EmergencyScreen(
                 }
             )
     ) {
-        if (!isAlarmActive || userRequestedStealthMode) {
-            // Show normal UI (when no emergency OR user hid the emergency screen)
-            NormalModeUI(
-                isModelLoaded = isModelLoaded,
-                statusMessage = if (isAlarmActive && userRequestedStealthMode) "System initialized" else statusMessage,
-                contacts = contacts,
-                onEmergencyTrigger = { viewModel.triggerEmergencyAlarm() },
-                onLoadModel = { viewModel.loadAIModel("Qwen 2.5 0.5B Instruct Q6_K") },
-                isStealthMode = isAlarmActive && userRequestedStealthMode
+        when {
+            // Show 404 error (camouflage or no emergency or user stealth)
+            !isAlarmActive || userRequestedStealthMode || autoCamouflageActive -> {
+                val reTriggerState = remember { mutableStateOf(false) }
+                Fake404ErrorScreen(
+                    isStealthMode = isAlarmActive && (userRequestedStealthMode || autoCamouflageActive),
+                    autoCamouflage = autoCamouflageActive,
+                    onSosButtonClick = {
+                        // ALWAYS trigger emergency when 404 button is clicked
+                        // If already in emergency, this will start a NEW emergency session
+                        if (isAlarmActive) {
+                            // Cancel current emergency first, then trigger new one
+                            reTriggerState.value = true
+                            viewModel.cancelEmergencyAlarm()
+                        } else {
+                            viewModel.triggerEmergencyAlarm()
+                        }
+                    },
+                    onScreenTap = {
+                        if (isAlarmActive && autoCamouflageActive) {
+                            // Triple tap detection to restore UI from auto-camouflage
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastTapTime < 2000) {
+                                tapCount++
+                                if (tapCount >= 3) {
+                                    // Triple tap detected - restore UI
+                                    autoCamouflageActive = false
+                                    tapCount = 0
+                                    lastInteractionTime = currentTime
+                                    viewModel.registerUserInteraction()
+                                    Log.i(
+                                        "EmergencyScreen",
+                                        "🔓 Auto-camouflage disabled via triple tap"
+                                    )
+                                }
+                            } else {
+                                tapCount = 1
+                            }
+                            lastTapTime = currentTime
+                        } else {
+                            // Not in camouflage - just register interaction
+                            viewModel.registerUserInteraction()
+                        }
+                    }
+                )
+
+                // Properly listen for "re-trigger" flow; wait for emergency to truly NOT be active before starting new alarm
+                if (reTriggerState.value && !isAlarmActive) {
+                    LaunchedEffect(reTriggerState.value, isAlarmActive) {
+                        // Give a short delay to allow state to settle
+                        delay(300)
+                        viewModel.triggerEmergencyAlarm()
+                        reTriggerState.value = false
+                    }
+                }
+            }
+            
+            // Show emergency UI
+            else -> {
+                // Emergency is active and user has NOT hidden it - show emergency UI
+                SimpleEmergencyUI(
+                    currentQuestion = currentQuestion,
+                    currentQuestionTimeRemaining = timeRemaining,
+                    secondQuestion = secondQuestion,
+                    secondQuestionTimeRemaining = secondTimeRemaining,
+                    statusMessage = statusMessage,
+                    emergencyPath = emergencyPath,
+                    alertHistory = alertHistory,
+                    nearestSafePlaces = nearestSafePlaces,
+                    isLoudAlarmActive = isLoudAlarmActive,
+                    onToggleLoudAlarm = { viewModel.toggleLoudAlarm() },
+                    isRecordingActive = isRecordingActive,
+                    recordingDuration = recordingDuration,
+                    onToggleRecording = { viewModel.toggleRecording() },
+                    isFakeCallActive = isFakeCallActive,
+                    onToggleFakeCall = {
+                        if (isFakeCallActive) viewModel.stopFakeCall() else viewModel.startFakeCall()
+                    },
+                    isBreathingActive = isBreathingActive,
+                    onToggleBreathing = {
+                        if (isBreathingActive) viewModel.stopBreathingExercise() else viewModel.startBreathingExercise()
+                    },
+                    onNavigateToPlace = { viewModel.navigateToPlace(it) },
+                    onRequestPolice = { viewModel.requestCallPolice() },
+                    showPoliceConfirmation = showPoliceConfirmation,
+                    onPoliceConfirmation = { viewModel.confirmCallPolice(it) },
+                    currentDestination = currentDestination,
+                    showArrivalConfirmation = showArrivalConfirmation,
+                    onArrivalConfirmation = { viewModel.confirmArrival(it) },
+                    onFirstQuestionYes = { viewModel.answerProtocolQuestionYes() },
+                    onFirstQuestionNo = { viewModel.answerProtocolQuestionNo() },
+                    onSecondQuestionYes = { viewModel.answerSecondQuestionYes() },
+                    onSecondQuestionNo = { viewModel.answerSecondQuestionNo() },
+                    onCancel = { viewModel.cancelEmergencyAlarm() }
+                )
+            }
+        }
+        
+        // Full-screen overlays (shown on top of everything)
+        if (isFakeCallActive) {
+            FakeCallOverlay(
+                onDismiss = { viewModel.stopFakeCall() }
             )
-        } else {
-            // Emergency is active and user has NOT hidden it - show emergency UI
-            SimpleEmergencyUI(
-                currentQuestion = currentQuestion,
-                currentQuestionTimeRemaining = timeRemaining,
-                secondQuestion = secondQuestion,
-                secondQuestionTimeRemaining = secondTimeRemaining,
-                statusMessage = statusMessage,
-                emergencyPath = emergencyPath,
-                alertHistory = alertHistory,
-                nearestSafePlaces = nearestSafePlaces,
-                isLoudAlarmActive = isLoudAlarmActive,
-                onToggleLoudAlarm = { viewModel.toggleLoudAlarm() },
-                isRecordingActive = isRecordingActive,
-                recordingDuration = recordingDuration,
-                onToggleRecording = { viewModel.toggleRecording() },
-                isFakeCallActive = isFakeCallActive,
-                onToggleFakeCall = {
-                    if (isFakeCallActive) viewModel.stopFakeCall() else viewModel.startFakeCall()
-                },
-                isBreathingActive = isBreathingActive,
-                onToggleBreathing = {
-                    if (isBreathingActive) viewModel.stopBreathingExercise() else viewModel.startBreathingExercise()
-                },
-                onNavigateToPlace = { viewModel.navigateToPlace(it) },
-                onRequestPolice = { viewModel.requestCallPolice() },
-                showPoliceConfirmation = showPoliceConfirmation,
-                onPoliceConfirmation = { viewModel.confirmCallPolice(it) },
-                currentDestination = currentDestination,
-                showArrivalConfirmation = showArrivalConfirmation,
-                onArrivalConfirmation = { viewModel.confirmArrival(it) },
-                onFirstQuestionYes = { viewModel.answerProtocolQuestionYes() },
-                onFirstQuestionNo = { viewModel.answerProtocolQuestionNo() },
-                onSecondQuestionYes = { viewModel.answerSecondQuestionYes() },
-                onSecondQuestionNo = { viewModel.answerSecondQuestionNo() },
-                onCancel = { viewModel.cancelEmergencyAlarm() }
+        }
+        
+        if (isBreathingActive) {
+            BreathingExerciseOverlay(
+                onDismiss = { viewModel.stopBreathingExercise() }
             )
         }
     }
@@ -205,7 +288,8 @@ private fun EscapeToSafetyScreen(
     onArrivalConfirmation: (Boolean) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    var safeSectionExpanded by rememberSaveable { mutableStateOf(true) }
+    var safeSectionExpanded by rememberSaveable { mutableStateOf(true) } // EXPANDED by default for Path B
+    var additionalProtectionExpanded by rememberSaveable { mutableStateOf(false) } // COLLAPSED by default
     val recordingMinutes = recordingDuration / 60
     val recordingSeconds = recordingDuration % 60
     val formattedRecording = String.format("%02d:%02d", recordingMinutes, recordingSeconds)
@@ -218,6 +302,8 @@ private fun EscapeToSafetyScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(16.dp))
+        
+        // Header
         Text(
             text = "HIGH ALERT – ESCAPE TO SAFETY",
             fontSize = 24.sp,
@@ -241,6 +327,7 @@ private fun EscapeToSafetyScreen(
             )
         )
 
+        // Journey progress card (if navigating)
         currentDestination?.let { destination ->
             Spacer(modifier = Modifier.height(20.dp))
             Card(
@@ -248,36 +335,57 @@ private fun EscapeToSafetyScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
-                shape = RoundedCornerShape(16.dp)
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Route,
-                        contentDescription = null,
-                        tint = Color(0xFF2E7D32)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Heading to ${destination.name}",
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF1B5E20)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Route,
+                            contentDescription = null,
+                            tint = Color(0xFF2E7D32),
+                            modifier = Modifier.size(32.dp)
                         )
-                        Text(
-                            text = "Stay visible and move towards well-lit areas.",
-                            color = Color(0xFF2E7D32),
-                            fontSize = 12.sp
-                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Heading to ${destination.name}",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1B5E20),
+                                fontSize = 16.sp
+                            )
+                            destination.distance?.let { distance ->
+                                Text(
+                                    text = "${distance.toInt()}m away",
+                                    color = Color(0xFF2E7D32),
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
                     }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "📍 Location updates sent every 30 seconds",
+                        color = Color(0xFF2E7D32),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "💡 Stay visible, move towards well-lit populated areas",
+                        color = Color(0xFF388E3C),
+                        fontSize = 12.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    )
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // EXPANDED Safe Places Section (PRIMARY focus for Path B)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -293,12 +401,13 @@ private fun EscapeToSafetyScreen(
                         .clickable { safeSectionExpanded = !safeSectionExpanded },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Map, contentDescription = null, tint = AmberYellowDark)
+                    Icon(Icons.Default.Map, contentDescription = null, tint = AmberYellowDark, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
                         text = "NEAREST SAFE PLACES",
                         fontWeight = FontWeight.Bold,
                         color = AmberYellowDark,
+                        fontSize = 18.sp,
                         modifier = Modifier.weight(1f)
                     )
                     Icon(
@@ -312,12 +421,13 @@ private fun EscapeToSafetyScreen(
                     Column(modifier = Modifier.padding(top = 16.dp)) {
                         if (nearestSafePlaces.isEmpty()) {
                             Text(
-                                text = "Fetching trusted locations...",
+                                text = "Fetching trusted locations nearby...",
                                 color = ModernTextSecondary,
                                 fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                                fontSize = 12.sp
+                                fontSize = 13.sp
                             )
                         } else {
+                            // Show 4-5 places (expanded for Path B)
                             nearestSafePlaces.take(5).forEach { place ->
                                 SafePlaceRow(
                                     place = place,
@@ -325,10 +435,20 @@ private fun EscapeToSafetyScreen(
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                         onNavigateToPlace(place)
                                     },
-                                    buttonLabel = "Navigate Now"
+                                    buttonLabel = "Navigate Now",
+                                    expanded = true // Show more details
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                             }
+                            
+                            // Info text
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Ranked by priority and distance. Choose the safest populated route.",
+                                color = ModernTextSecondary,
+                                fontSize = 12.sp,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
                         }
                     }
                 }
@@ -337,35 +457,130 @@ private fun EscapeToSafetyScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        AdditionalProtectionSection(
-            isLoudAlarmActive = isLoudAlarmActive,
-            onToggleLoudAlarm = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onToggleLoudAlarm()
-            },
-            isRecordingActive = isRecordingActive,
-            onToggleRecording = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onToggleRecording()
-            },
-            isFakeCallActive = isFakeCallActive,
-            onToggleFakeCall = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onToggleFakeCall()
-            },
-            isBreathingActive = isBreathingActive,
-            onToggleBreathing = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onToggleBreathing()
-            },
-            onRequestPolice = {
-                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                onRequestPolice()
+        // COLLAPSIBLE Additional Protection Section (SECONDARY for Path B)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { additionalProtectionExpanded = !additionalProtectionExpanded },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Security,
+                        contentDescription = null,
+                        tint = ModernTextSecondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "ADDITIONAL PROTECTION",
+                        fontWeight = FontWeight.Bold,
+                        color = ModernTextSecondary,
+                        fontSize = 16.sp,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        imageVector = if (additionalProtectionExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = ModernTextSecondary
+                    )
+                }
+
+                AnimatedVisibility(visible = additionalProtectionExpanded) {
+                    Column(modifier = Modifier.padding(top = 16.dp)) {
+                        // Compact 2x2 grid of protection tools
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CompactActionButton(
+                                modifier = Modifier.weight(1f),
+                                title = if (isLoudAlarmActive) "Stop Alarm" else "Loud Alarm",
+                                icon = Icons.Default.Campaign,
+                                containerColor = if (isLoudAlarmActive) SafetyRed else SafetyRed.copy(alpha = 0.9f),
+                                active = isLoudAlarmActive,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onToggleLoudAlarm()
+                                }
+                            )
+
+                            CompactActionButton(
+                                modifier = Modifier.weight(1f),
+                                title = if (isRecordingActive) "Recording..." else "Record",
+                                icon = Icons.Default.Mic,
+                                containerColor = if (isRecordingActive) Color(0xFFB71C1C) else Color(0xFFD32F2F),
+                                active = isRecordingActive,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onToggleRecording()
+                                }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CompactActionButton(
+                                modifier = Modifier.weight(1f),
+                                title = if (isFakeCallActive) "End Call" else "Fake Call",
+                                icon = Icons.Default.Phone,
+                                containerColor = Color(0xFF1565C0),
+                                active = isFakeCallActive,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onToggleFakeCall()
+                                }
+                            )
+
+                            CompactActionButton(
+                                modifier = Modifier.weight(1f),
+                                title = "Breathing",
+                                icon = Icons.Default.SelfImprovement,
+                                containerColor = Color(0xFF43A047),
+                                active = isBreathingActive,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onToggleBreathing()
+                                }
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // Call police button in this section too
+                        Button(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onRequestPolice()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = SafetyRed),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.LocalPolice, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Call Police (112)", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
-        )
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Safety Network Status (less prominent than Path A)
         SafetyNetworkStatus(
             alertHistory = alertHistory,
             isRecordingActive = isRecordingActive,
@@ -375,11 +590,13 @@ private fun EscapeToSafetyScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Police call section (less prominent)
         CallPoliceSection(
             onRequestPolice = onRequestPolice,
-            primary = false
+            primary = false // NOT primary in Path B
         )
 
+        // Dialogs
         if (showPoliceConfirmation) {
             AlertDialog(
                 onDismissRequest = { onPoliceConfirmation(false) },
@@ -422,12 +639,12 @@ private fun EscapeToSafetyScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = { onArrivalConfirmation(true) }) {
-                        Text("YES, I'M SAFE", fontWeight = FontWeight.Bold)
+                        Text("YES, I'M SAFE", fontWeight = FontWeight.Bold, color = Color(0xFF43A047))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { onArrivalConfirmation(false) }) {
-                        Text("Not yet")
+                        Text("Not yet, continue")
                     }
                 }
             )
@@ -445,139 +662,145 @@ private fun NormalModeUI(
     onLoadModel: () -> Unit,
     isStealthMode: Boolean = false
 ) {
-    Column(
+    // Use fake 404 error screen as the UI
+    Fake404ErrorScreen(
+        isStealthMode = isStealthMode,
+        autoCamouflage = false,
+        onSosButtonClick = { if (isModelLoaded) onEmergencyTrigger() else onLoadModel() }
+    )
+}
+
+/**
+ * Fake 404 Error Screen - Camouflage Mode UI
+ * Used when the app is hidden (stealth or auto-camouflage). "404 error: Page Not Found"
+ * 
+ * The 404 button/screen is ALWAYS clickable to trigger emergency
+ */
+@Composable
+fun Fake404ErrorScreen(
+    isStealthMode: Boolean,
+    autoCamouflage: Boolean,
+    onSosButtonClick: () -> Unit,
+    onScreenTap: () -> Unit = {}
+) {
+    val haptic = LocalHapticFeedback.current
+    
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(
+                Brush.verticalGradient(
+                    colors = if (isStealthMode || autoCamouflage) {
+                        listOf(Color(0xFFF5F1E8), Color(0xFFF5F1E8))
+                    } else {
+                        listOf(Color(0xFFF5F5F5), Color(0xFFE8E8E8))
+                    }
+                )
+            )
+            .pointerInput(Unit) {
+                // Click anywhere on screen (background) - NOT on the 404 button
+                detectTapGestures(
+                    onTap = {
+                        onScreenTap()
+                    }
+                )
+            }
     ) {
-        Spacer(modifier = Modifier.height(40.dp))
-
-        // Title - 404 ERROR
-        Text(
-            text = "404 ERROR",
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF2D2D2D),
-            letterSpacing = 1.sp
-        )
-        
-        Text(
-            text = "Application Not Found",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Normal,
-            color = Color(0xFF666666),
-            letterSpacing = 0.5.sp
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Status Card - Clean white card with shadow
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.White
-            ),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 80.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                modifier = Modifier.padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = null,
-                    tint = Color(0xFF2D2D2D),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(
-                    text = if (isModelLoaded) {
-                        if (isStealthMode) "System monitoring" else "System initialized"
-                    } else "System offline",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = Color(0xFF2D2D2D),
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Main 404 Button - Large circular button with gray outline
-        Circular404Button(
-            enabled = isModelLoaded,
-            onClick = onEmergencyTrigger,
-            isStealthMode = isStealthMode
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text(
-            text = if (isStealthMode) "tap to re-send alerts" else "tap to retry connection",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF888888),
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Normal
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Initialize System Button (if model not loaded)
-        if (!isModelLoaded) {
-            Button(
-                onClick = onLoadModel,
+            // 404 Error Button - ALWAYS CLICKABLE FOR SOS
+            Surface(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF2D2D2D)
-                ),
-                shape = RoundedCornerShape(12.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                    .size(220.dp)
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onSosButtonClick()
+                    },
+                shape = CircleShape,
+                color = Color.White,
+                shadowElevation = if (isStealthMode || autoCamouflage) 0.dp else 6.dp,
+                border = BorderStroke(
+                    width = 2.dp,
+                    color = if (isStealthMode || autoCamouflage) Color(0xFFE0E0E0) else Color(
+                        0xFFCCCCCC
+                    )
+                )
             ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    "INITIALIZE SYSTEM",
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    fontSize = 14.sp,
-                    color = Color.White
-                )
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "404",
+                            fontSize = 72.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isStealthMode || autoCamouflage) Color(0xFFCCCCCC) else Color(
+                                0xFFE0E0E0
+                            ),
+                            textAlign = TextAlign.Center,
+                            letterSpacing = 2.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "error",
+                            fontSize = 18.sp,
+                            color = if (isStealthMode || autoCamouflage) Color(0xFF999999) else Color(
+                                0xFFCCCCCC
+                            ),
+                            fontWeight = FontWeight.Normal,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
             }
-
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Page Not Found",
+                fontSize = 24.sp,
+                color = Color(0xFF888888),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                letterSpacing = 1.sp
+            )
             Spacer(modifier = Modifier.height(12.dp))
-
-            // Warning text
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Warning,
-                    contentDescription = null,
-                    tint = Color(0xFFFF9800),
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = if (isStealthMode || autoCamouflage)
+                    "The page you requested could not be found.\nError 404."
+                else
+                    "Looks like this page doesn't exist.",
+                fontSize = 15.sp,
+                color = Color(0xFF999999),
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(36.dp))
+            if (isStealthMode || autoCamouflage) {
                 Text(
-                    text = "first time initialization may take several minutes",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF888888),
-                    fontSize = 11.sp
+                    text = "Tap screen three times quickly to restore app",
+                    fontSize = 13.sp,
+                    color = Color(0xFFB0B0B0),
+                    textAlign = TextAlign.Center,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+            } else {
+                // When no emergency active, show subtle hint that 404 button is clickable
+                Text(
+                    text = "Tap the error code for emergency alert",
+                    fontSize = 12.sp,
+                    color = Color(0xFFCCCCCC),
+                    textAlign = TextAlign.Center,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
@@ -1078,7 +1301,9 @@ private fun ActionGrid(
                 containerColor = if (isRecordingActive) Color(0xFFB71C1C) else Color(0xFFD32F2F),
                 active = isRecordingActive,
                 pulseAlpha = if (isRecordingActive) pulseAlpha else 0f,
-                onClick = onToggleRecording
+                onClick = onToggleRecording,
+                recordingTime = if (isRecordingActive) recordingTime else null,
+                recordingUploading = isRecordingActive // show uploading if currently recording
             )
         }
 
@@ -1120,7 +1345,9 @@ private fun PrimaryActionButton(
     containerColor: Color,
     active: Boolean,
     onClick: () -> Unit,
-    pulseAlpha: Float = 0f
+    pulseAlpha: Float = 0f,
+    recordingTime: String? = null,
+    recordingUploading: Boolean = false
 ) {
     Surface(
         modifier = modifier
@@ -1180,6 +1407,44 @@ private fun PrimaryActionButton(
                         )
                     }
                 }
+
+                // Show extra recording status details if recordingTime is provided
+                if (recordingTime != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = "Recording timestamp",
+                            tint = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = recordingTime,
+                            color = Color.White,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp
+                        )
+                    }
+                    if (recordingUploading) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CloudUpload,
+                                contentDescription = "Uploading",
+                                tint = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Auto-uploading evidence",
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -1189,7 +1454,8 @@ private fun PrimaryActionButton(
 private fun SafePlaceRow(
     place: SafePlace,
     onNavigate: () -> Unit,
-    buttonLabel: String = "Navigate"
+    buttonLabel: String = "Navigate",
+    expanded: Boolean = false
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1206,7 +1472,7 @@ private fun SafePlaceRow(
                     "store" -> Icons.Default.Store
                     else -> Icons.Default.Place
                 }
-                Icon(icon, contentDescription = null, tint = AmberYellowDark)
+                Icon(icon, contentDescription = null, tint = AmberYellowDark, modifier = Modifier.size(32.dp))
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(place.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -1234,6 +1500,17 @@ private fun SafePlaceRow(
             place.address.takeIf { it.isNotBlank() }?.let { address ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(address, color = Color(0xFF757575), fontSize = 12.sp)
+            }
+            if (expanded) {
+                // Show more details for Path B
+                place.hours?.takeIf { it.isNotBlank() }?.let { hours ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Hours: $hours", color = Color(0xFF8D6E63), fontSize = 11.sp)
+                }
+                place.notes?.takeIf { it.isNotBlank() }?.let { notes ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Info: $notes", color = Color(0xFF8D6E63), fontSize = 11.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                }
             }
         }
     }
@@ -1317,6 +1594,20 @@ private fun SafetyNetworkStatus(
 
 @Composable
 private fun AlertHistoryRow(record: AlertRecord) {
+    // Format timestamp
+    val timeText = remember(record.timestamp) {
+        val now = System.currentTimeMillis()
+        val diff = now - record.timestamp
+        when {
+            diff < 60000 -> "Just now"
+            diff < 3600000 -> "${diff / 60000}m ago"
+            else -> {
+                val formatter = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault())
+                formatter.format(java.util.Date(record.timestamp))
+            }
+        }
+    }
+    
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1329,11 +1620,23 @@ private fun AlertHistoryRow(record: AlertRecord) {
                 color = ModernTextPrimary,
                 fontSize = 14.sp
             )
-            Text(
-                text = record.messageType.name,
-                color = ModernTextSecondary,
-                fontSize = 12.sp
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = record.messageType.name,
+                    color = ModernTextSecondary,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = " • ",
+                    color = ModernTextSecondary,
+                    fontSize = 12.sp
+                )
+                Text(
+                    text = timeText,
+                    color = ModernTextSecondary,
+                    fontSize = 12.sp
+                )
+            }
         }
         val statusColor = if (record.success) Color(0xFF43A047) else SafetyRed
         Text(
@@ -1425,6 +1728,8 @@ private fun QuestionCard(
     onAnswerYes: () -> Unit,
     onAnswerNo: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -1493,7 +1798,10 @@ private fun QuestionCard(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Button(
-                    onClick = onAnswerYes,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onAnswerYes()
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .height(100.dp),
@@ -1524,7 +1832,10 @@ private fun QuestionCard(
                 }
 
                 Button(
-                    onClick = onAnswerNo,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onAnswerNo()
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .height(100.dp),
@@ -1596,6 +1907,8 @@ private fun ProximityQuestionCard(
     onAnswerYes: () -> Unit,
     onAnswerNo: () -> Unit
 ) {
+    val haptic = LocalHapticFeedback.current
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -1664,7 +1977,10 @@ private fun ProximityQuestionCard(
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Button(
-                    onClick = onAnswerYes,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onAnswerYes()
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .height(100.dp),
@@ -1695,7 +2011,10 @@ private fun ProximityQuestionCard(
                 }
 
                 Button(
-                    onClick = onAnswerNo,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onAnswerNo()
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .height(100.dp),
@@ -1856,4 +2175,659 @@ private fun MonitoringCard() {
             }
         }
     }
+}
+
+/**
+ * Additional Protection Section - Used in Escape to Safety path
+ * Provides quick access to safety tools in a compact format
+ */
+@Composable
+private fun AdditionalProtectionSection(
+    isLoudAlarmActive: Boolean,
+    onToggleLoudAlarm: () -> Unit,
+    isRecordingActive: Boolean,
+    onToggleRecording: () -> Unit,
+    isFakeCallActive: Boolean,
+    onToggleFakeCall: () -> Unit,
+    isBreathingActive: Boolean,
+    onToggleBreathing: () -> Unit,
+    onRequestPolice: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text(
+                text = "ADDITIONAL PROTECTION",
+                fontWeight = FontWeight.Bold,
+                color = ModernTextPrimary,
+                fontSize = 16.sp
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Compact action buttons in 2x2 grid
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CompactActionButton(
+                    modifier = Modifier.weight(1f),
+                    title = if (isLoudAlarmActive) "Stop Alarm" else "Loud Alarm",
+                    icon = Icons.Default.Campaign,
+                    containerColor = if (isLoudAlarmActive) SafetyRed else SafetyRed.copy(alpha = 0.9f),
+                    active = isLoudAlarmActive,
+                    onClick = onToggleLoudAlarm
+                )
+
+                CompactActionButton(
+                    modifier = Modifier.weight(1f),
+                    title = if (isRecordingActive) "Recording..." else "Record",
+                    icon = Icons.Default.Mic,
+                    containerColor = if (isRecordingActive) Color(0xFFB71C1C) else Color(0xFFD32F2F),
+                    active = isRecordingActive,
+                    onClick = onToggleRecording
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CompactActionButton(
+                    modifier = Modifier.weight(1f),
+                    title = if (isFakeCallActive) "End Call" else "Fake Call",
+                    icon = Icons.Default.Phone,
+                    containerColor = Color(0xFF1565C0),
+                    active = isFakeCallActive,
+                    onClick = onToggleFakeCall
+                )
+
+                CompactActionButton(
+                    modifier = Modifier.weight(1f),
+                    title = "Breathing",
+                    icon = Icons.Default.SelfImprovement,
+                    containerColor = Color(0xFF43A047),
+                    active = isBreathingActive,
+                    onClick = onToggleBreathing
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactActionButton(
+    modifier: Modifier = Modifier,
+    title: String,
+    icon: ImageVector,
+    containerColor: Color,
+    active: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .height(80.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        color = containerColor,
+        tonalElevation = if (active) 8.dp else 2.dp,
+        shadowElevation = 4.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = title,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/**
+ * Fake Call Overlay - Realistic incoming call screen
+ * Makes it appear like the user is receiving a call, useful for discreet exit from dangerous situations
+ */
+@Composable
+fun FakeCallOverlay(
+    onDismiss: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    
+    // Pulsing animation for the call screen
+    val infiniteTransition = rememberInfiniteTransition(label = "callPulse")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.05f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = EaseInOut),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF1C1C1E))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Spacer(modifier = Modifier.height(60.dp))
+            
+            // Caller info
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Profile picture placeholder
+                Box(
+                    modifier = Modifier
+                        .size(120.dp)
+                        .scale(pulseScale)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF4CAF50),
+                                    Color(0xFF2E7D32)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(64.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Text(
+                    text = "Dad",
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "mobile",
+                    fontSize = 18.sp,
+                    color = Color.White.copy(alpha = 0.7f)
+                )
+                
+                Spacer(modifier = Modifier.height(32.dp))
+                
+                // Pulsing "incoming call" indicator
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(12.dp)
+                            .scale(pulseScale)
+                            .clip(CircleShape)
+                            .background(Color(0xFF4CAF50))
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "incoming call...",
+                        fontSize = 16.sp,
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    )
+                }
+            }
+            
+            // Call action buttons
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Quick options
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
+                            shape = CircleShape,
+                            color = Color(0xFF3C3C3E)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Notifications,
+                                    contentDescription = "Remind me",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Remind Me",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                    
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                },
+                            shape = CircleShape,
+                            color = Color(0xFF3C3C3E)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Sms,
+                                    contentDescription = "Message",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Message",
+                            fontSize = 12.sp,
+                            color = Color.White.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(48.dp))
+                
+                // Main call buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    // Decline button
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onDismiss()
+                                },
+                            shape = CircleShape,
+                            color = SafetyRed
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.CallEnd,
+                                    contentDescription = "Decline",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Decline",
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                    }
+                    
+                    // Accept button
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    // Simulate answering - just close after brief delay
+                                    onDismiss()
+                                },
+                            shape = CircleShape,
+                            color = Color(0xFF4CAF50)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Call,
+                                    contentDescription = "Accept",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Accept",
+                            fontSize = 14.sp,
+                            color = Color.White
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(40.dp))
+            }
+        }
+    }
+}
+
+/**
+ * Breathing Exercise Overlay - Full-screen guided breathing
+ * 4-4-4 pattern: Breathe in (4s), Hold (4s), Breathe out (4s)
+ */
+@Composable
+fun BreathingExerciseOverlay(
+    onDismiss: () -> Unit
+) {
+    var breathingPhase by remember { mutableStateOf(BreathingPhase.BREATHE_IN) }
+    var countdown by remember { mutableStateOf(4) }
+    
+    // Animation for the breathing circle
+    val infiniteTransition = rememberInfiniteTransition(label = "breathing")
+    val circleSize by infiniteTransition.animateFloat(
+        initialValue = 100f,
+        targetValue = 200f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(4000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "circleSize"
+    )
+    
+    // Countdown timer
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            if (countdown > 1) {
+                countdown--
+            } else {
+                // Move to next phase
+                breathingPhase = when (breathingPhase) {
+                    BreathingPhase.BREATHE_IN -> BreathingPhase.HOLD
+                    BreathingPhase.HOLD -> BreathingPhase.BREATHE_OUT
+                    BreathingPhase.BREATHE_OUT -> BreathingPhase.BREATHE_IN
+                }
+                countdown = 4
+            }
+        }
+    }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1A237E),
+                        Color(0xFF0D47A1),
+                        Color(0xFF01579B)
+                    )
+                )
+            )
+    ) {
+        // Close button
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp)
+        ) {
+            Icon(
+                Icons.Default.Close,
+                contentDescription = "Exit",
+                tint = Color.White,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Breathing Exercise",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = "Follow the circle and breathe calmly",
+                fontSize = 16.sp,
+                color = Color.White.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center
+            )
+            
+            Spacer(modifier = Modifier.height(64.dp))
+            
+            // Animated breathing circle
+            Box(
+                contentAlignment = Alignment.Center
+            ) {
+                // Outer glow
+                Box(
+                    modifier = Modifier
+                        .size(circleSize.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.3f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                )
+                
+                // Main circle
+                Box(
+                    modifier = Modifier
+                        .size((circleSize * 0.8f).dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF64B5F6),
+                                    Color(0xFF2196F3)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "$countdown",
+                        fontSize = 72.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(64.dp))
+            
+            // Phase indicator
+            Text(
+                text = when (breathingPhase) {
+                    BreathingPhase.BREATHE_IN -> "Breathe In"
+                    BreathingPhase.HOLD -> "Hold"
+                    BreathingPhase.BREATHE_OUT -> "Breathe Out"
+                },
+                fontSize = 32.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = when (breathingPhase) {
+                    BreathingPhase.BREATHE_IN -> "Slowly inhale through your nose"
+                    BreathingPhase.HOLD -> "Hold your breath gently"
+                    BreathingPhase.BREATHE_OUT -> "Slowly exhale through your mouth"
+                },
+                fontSize = 16.sp,
+                color = Color.White.copy(alpha = 0.9f),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+enum class BreathingPhase {
+    BREATHE_IN,
+    HOLD,
+    BREATHE_OUT
+}
+
+/**
+ * Permission Denied Dialog - Shows friendly error and alternatives
+ * Follows Material 3 guidelines for error handling
+ */
+@Composable
+fun PermissionDeniedDialog(
+    permissionName: String,
+    featureName: String,
+    explanation: String,
+    alternatives: List<String>,
+    onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                Icons.Default.Warning,
+                contentDescription = null,
+                tint = WarningOrange,
+                modifier = Modifier.size(32.dp)
+            )
+        },
+        title = {
+            Text(
+                text = "$permissionName Permission Required",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = explanation,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = ModernTextPrimary,
+                    lineHeight = 24.sp
+                )
+                
+                if (alternatives.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Available alternatives:",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ModernTextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    alternatives.forEach { alternative ->
+                        Row(
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text(
+                                text = "• ",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TrustBlue
+                            )
+                            Text(
+                                text = alternative,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = ModernTextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onOpenSettings,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TrustBlue
+                ),
+                modifier = Modifier.heightIn(min = 48.dp) // Min touch target
+            ) {
+                Icon(Icons.Default.Settings, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "Open Settings",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontSize = 16.sp
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.heightIn(min = 48.dp) // Min touch target
+            ) {
+                Text(
+                    "Maybe Later",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontSize = 16.sp
+                )
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        containerColor = Color.White,
+        tonalElevation = 8.dp
+    )
 }

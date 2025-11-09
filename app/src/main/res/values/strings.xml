@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">404Error</string>
+    <string name="emergency_service_description">Monitors your safety during emergencies by tracking location and recording evidence</string>
 </resources>
