@@ -2,6 +2,8 @@ package com.runanywhere.startup_hackathon20.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -21,6 +23,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,7 +34,7 @@ import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.*
 import com.runanywhere.startup_hackathon20.AlertRecord
 import com.runanywhere.startup_hackathon20.EmergencyPath
-import com.runanywhere.startup_hackathon20.SafePlace
+import com.runanywhere.startup_hackathon20.data.SafePlace
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -62,6 +65,9 @@ fun EmergencyScreen(
     val showArrivalConfirmation by viewModel.showArrivalConfirmation.collectAsState()
     val currentDestination by viewModel.currentDestination.collectAsState()
     val interactionSignal by viewModel.interactionTimestamp.collectAsState()
+    val showStealthDecoy by viewModel.showStealthDecoy.collectAsState()
+    val showInfoIcon by viewModel.showInfoIcon.collectAsState()
+    val showDecoyAvailable by viewModel.showDecoyAvailable.collectAsState()
 
     // Track if user manually requested stealth mode
     var userRequestedStealthMode by remember { mutableStateOf(false) }
@@ -84,8 +90,8 @@ fun EmergencyScreen(
     }
 
     // Auto-camouflage timer - activate after 30 seconds of inactivity
-    LaunchedEffect(isAlarmActive, lastInteractionTime) {
-        if (isAlarmActive && !userRequestedStealthMode) {
+    LaunchedEffect(isAlarmActive, lastInteractionTime, showDecoyAvailable) {
+        if (isAlarmActive && !showDecoyAvailable && !userRequestedStealthMode) {
             while (isAlarmActive) {
                 delay(1000) // Check every second
                 val timeSinceLastInteraction = System.currentTimeMillis() - lastInteractionTime
@@ -99,19 +105,6 @@ fun EmergencyScreen(
         }
     }
 
-    // Auto-hide after alerts sent and question answered (or timed out)
-    LaunchedEffect(isAlarmActive, currentQuestion, alertHistory) {
-        if (isAlarmActive && currentQuestion == null && alertHistory.isNotEmpty()) {
-            // Alerts sent AND question answered/timed out
-            // Auto-hide after 3 seconds to show monitoring message
-            delay(3000)
-            if (isAlarmActive && currentQuestion == null) {
-                // Auto-activate stealth mode
-                userRequestedStealthMode = true
-                viewModel.enterStealthMode()
-            }
-        }
-    }
 
     // Reset stealth mode and auto-camouflage when alarm is cancelled
     LaunchedEffect(isAlarmActive) {
@@ -211,41 +204,83 @@ fun EmergencyScreen(
             // Show emergency UI
             else -> {
                 // Emergency is active and user has NOT hidden it - show emergency UI
-                SimpleEmergencyUI(
-                    currentQuestion = currentQuestion,
-                    currentQuestionTimeRemaining = timeRemaining,
-                    secondQuestion = secondQuestion,
-                    secondQuestionTimeRemaining = secondTimeRemaining,
-                    statusMessage = statusMessage,
-                    emergencyPath = emergencyPath,
-                    alertHistory = alertHistory,
-                    nearestSafePlaces = nearestSafePlaces,
-                    isLoudAlarmActive = isLoudAlarmActive,
-                    onToggleLoudAlarm = { viewModel.toggleLoudAlarm() },
-                    isRecordingActive = isRecordingActive,
-                    recordingDuration = recordingDuration,
-                    onToggleRecording = { viewModel.toggleRecording() },
-                    isFakeCallActive = isFakeCallActive,
-                    onToggleFakeCall = {
-                        if (isFakeCallActive) viewModel.stopFakeCall() else viewModel.startFakeCall()
-                    },
-                    isBreathingActive = isBreathingActive,
-                    onToggleBreathing = {
-                        if (isBreathingActive) viewModel.stopBreathingExercise() else viewModel.startBreathingExercise()
-                    },
-                    onNavigateToPlace = { viewModel.navigateToPlace(it) },
-                    onRequestPolice = { viewModel.requestCallPolice() },
-                    showPoliceConfirmation = showPoliceConfirmation,
-                    onPoliceConfirmation = { viewModel.confirmCallPolice(it) },
-                    currentDestination = currentDestination,
-                    showArrivalConfirmation = showArrivalConfirmation,
-                    onArrivalConfirmation = { viewModel.confirmArrival(it) },
-                    onFirstQuestionYes = { viewModel.answerProtocolQuestionYes() },
-                    onFirstQuestionNo = { viewModel.answerProtocolQuestionNo() },
-                    onSecondQuestionYes = { viewModel.answerSecondQuestionYes() },
-                    onSecondQuestionNo = { viewModel.answerSecondQuestionNo() },
-                    onCancel = { viewModel.cancelEmergencyAlarm() }
-                )
+                if (emergencyPath == EmergencyPath.ESCAPE_TO_SAFETY) {
+                    if (showStealthDecoy) {
+                        // Show decoy home screen with info icon for Path B stealth switching
+                        Fake404ErrorScreenWithInfoIcon(
+                            viewModel = viewModel,
+                            isStealthMode = true,
+                            autoCamouflage = false,
+                            onSosButtonClick = { viewModel.triggerEmergencyAlarm() },
+                            onScreenTap = { viewModel.registerUserInteraction() }
+                        )
+                    } else {
+                        EscapeToSafetyScreen(
+                            viewModel = viewModel,
+                            statusMessage = statusMessage,
+                            nearestSafePlaces = nearestSafePlaces,
+                            currentDestination = currentDestination,
+                            isLoudAlarmActive = isLoudAlarmActive,
+                            onToggleLoudAlarm = { viewModel.toggleLoudAlarm() },
+                            isRecordingActive = isRecordingActive,
+                            recordingDuration = recordingDuration,
+                            onToggleRecording = { viewModel.toggleRecording() },
+                            isFakeCallActive = isFakeCallActive,
+                            onToggleFakeCall = {
+                                if (isFakeCallActive) viewModel.stopFakeCall() else viewModel.startFakeCall()
+                            },
+                            isBreathingActive = isBreathingActive,
+                            onToggleBreathing = {
+                                if (isBreathingActive) viewModel.stopBreathingExercise() else viewModel.startBreathingExercise()
+                            },
+                            onNavigateToPlace = { viewModel.navigateToPlace(it) },
+                            showPoliceConfirmation = showPoliceConfirmation,
+                            onPoliceConfirmation = { viewModel.confirmCallPolice(it) },
+                            onRequestPolice = { viewModel.requestCallPolice() },
+                            alertHistory = alertHistory,
+                            showArrivalConfirmation = showArrivalConfirmation,
+                            onArrivalConfirmation = { viewModel.confirmArrival(it) }
+                        )
+                    }
+                } else {
+                    // For other paths (including THREAT_NEARBY), use existing logic
+                    SimpleEmergencyUI(
+                        viewModel = viewModel,
+                        currentQuestion = currentQuestion,
+                        currentQuestionTimeRemaining = timeRemaining,
+                        secondQuestion = secondQuestion,
+                        secondQuestionTimeRemaining = secondTimeRemaining,
+                        statusMessage = statusMessage,
+                        emergencyPath = emergencyPath,
+                        alertHistory = alertHistory,
+                        nearestSafePlaces = nearestSafePlaces,
+                        isLoudAlarmActive = isLoudAlarmActive,
+                        onToggleLoudAlarm = { viewModel.toggleLoudAlarm() },
+                        isRecordingActive = isRecordingActive,
+                        recordingDuration = recordingDuration,
+                        onToggleRecording = { viewModel.toggleRecording() },
+                        isFakeCallActive = isFakeCallActive,
+                        onToggleFakeCall = {
+                            if (isFakeCallActive) viewModel.stopFakeCall() else viewModel.startFakeCall()
+                        },
+                        isBreathingActive = isBreathingActive,
+                        onToggleBreathing = {
+                            if (isBreathingActive) viewModel.stopBreathingExercise() else viewModel.startBreathingExercise()
+                        },
+                        onNavigateToPlace = { viewModel.navigateToPlace(it) },
+                        onRequestPolice = { viewModel.requestCallPolice() },
+                        showPoliceConfirmation = showPoliceConfirmation,
+                        onPoliceConfirmation = { viewModel.confirmCallPolice(it) },
+                        currentDestination = currentDestination,
+                        showArrivalConfirmation = showArrivalConfirmation,
+                        onArrivalConfirmation = { viewModel.confirmArrival(it) },
+                        onFirstQuestionYes = { viewModel.answerProtocolQuestionYes() },
+                        onFirstQuestionNo = { viewModel.answerProtocolQuestionNo() },
+                        onSecondQuestionYes = { viewModel.answerSecondQuestionYes() },
+                        onSecondQuestionNo = { viewModel.answerSecondQuestionNo() },
+                        onCancel = { viewModel.cancelEmergencyAlarm() }
+                    )
+                }
             }
         }
         
@@ -267,6 +302,7 @@ fun EmergencyScreen(
 
 @Composable
 private fun EscapeToSafetyScreen(
+    viewModel: SafetyViewModel,
     statusMessage: String,
     nearestSafePlaces: List<SafePlace>,
     currentDestination: SafePlace?,
@@ -288,6 +324,7 @@ private fun EscapeToSafetyScreen(
     onArrivalConfirmation: (Boolean) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    val showDecoyAvailable by viewModel.showDecoyAvailable.collectAsState()
     var safeSectionExpanded by rememberSaveable { mutableStateOf(true) } // EXPANDED by default for Path B
     var additionalProtectionExpanded by rememberSaveable { mutableStateOf(false) } // COLLAPSED by default
     val recordingMinutes = recordingDuration / 60
@@ -302,6 +339,32 @@ private fun EscapeToSafetyScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(16.dp))
+
+        if (showDecoyAvailable) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 16.dp, top = 16.dp),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                IconButton(
+                    onClick = { viewModel.switchToDecoy() },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Color.White.copy(alpha = 0.8f),
+                            CircleShape
+                        )
+                ) {
+                    Icon(
+                        Icons.Filled.Info,
+                        contentDescription = "Hide to home screen (decoy)",
+                        tint = Color(0xFF757575),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
         
         // Header
         Text(
@@ -377,7 +440,7 @@ private fun EscapeToSafetyScreen(
                         text = "💡 Stay visible, move towards well-lit populated areas",
                         color = Color(0xFF388E3C),
                         fontSize = 12.sp,
-                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        fontStyle = FontStyle.Italic
                     )
                 }
             }
@@ -423,7 +486,7 @@ private fun EscapeToSafetyScreen(
                             Text(
                                 text = "Fetching trusted locations nearby...",
                                 color = ModernTextSecondary,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                                fontStyle = FontStyle.Italic,
                                 fontSize = 13.sp
                             )
                         } else {
@@ -447,7 +510,7 @@ private fun EscapeToSafetyScreen(
                                 text = "Ranked by priority and distance. Choose the safest populated route.",
                                 color = ModernTextSecondary,
                                 fontSize = 12.sp,
-                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                                fontStyle = FontStyle.Italic
                             )
                         }
                     }
@@ -684,7 +747,7 @@ fun Fake404ErrorScreen(
     onScreenTap: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
-    
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -804,6 +867,127 @@ fun Fake404ErrorScreen(
     }
 }
 
+/**
+ * Fake 404 Error Screen with top-right Info icon for Path B decoy
+ */
+@Composable
+fun Fake404ErrorScreenWithInfoIcon(
+    viewModel: SafetyViewModel,
+    isStealthMode: Boolean,
+    autoCamouflage: Boolean,
+    onSosButtonClick: () -> Unit,
+    onScreenTap: () -> Unit
+) {
+    val showInfoIcon by viewModel.showInfoIcon.collectAsState()
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(Color(0xFFF5F1E8), Color(0xFFF5F1E8))
+                )
+            )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = {
+                        onScreenTap()
+                    }
+                )
+            }
+    ) {
+        // Info icon button - top right, only if showInfoIcon
+        if (showInfoIcon) {
+            IconButton(
+                onClick = { viewModel.onInfoIconClicked() },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .size(48.dp)
+                    .background(
+                        Color.White.copy(alpha = 0.8f),
+                        CircleShape
+                    )
+            ) {
+                Icon(
+                    Icons.Filled.Info,
+                    contentDescription = "Return to safety navigation",
+                    tint = Color(0xFF757575),
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+
+        // Existing 404 content - centered
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .align(Alignment.Center)
+                .padding(top = 80.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 404 Error Button
+            Surface(
+                modifier = Modifier
+                    .size(220.dp)
+                    .clickable {
+                        onSosButtonClick()
+                    },
+                shape = CircleShape,
+                color = Color.White,
+                shadowElevation = 0.dp,
+                border = BorderStroke(
+                    width = 2.dp,
+                    color = Color(0xFFE0E0E0)
+                )
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "404",
+                            fontSize = 72.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFCCCCCC),
+                            textAlign = TextAlign.Center,
+                            letterSpacing = 2.sp
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "error",
+                            fontSize = 18.sp,
+                            color = Color(0xFF999999),
+                            fontWeight = FontWeight.Normal,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Page Not Found",
+                fontSize = 24.sp,
+                color = Color(0xFF888888),
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "The page you requested could not be found.\nError 404.",
+                fontSize = 15.sp,
+                color = Color(0xFF999999),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
 @Composable
 private fun Circular404Button(
     enabled: Boolean,
@@ -893,6 +1077,7 @@ private fun Circular404Button(
  */
 @Composable
 private fun SimpleEmergencyUI(
+    viewModel: SafetyViewModel,
     currentQuestion: ProtocolQuestion?,
     currentQuestionTimeRemaining: Int?,
     secondQuestion: ProtocolQuestion?,
@@ -923,148 +1108,163 @@ private fun SimpleEmergencyUI(
     onSecondQuestionNo: () -> Unit,
     onCancel: () -> Unit
 ) {
-    if (emergencyPath == EmergencyPath.THREAT_NEARBY && currentQuestion == null && secondQuestion == null) {
-        ThreatNearbyScreen(
-            statusMessage = statusMessage,
-            alertHistory = alertHistory,
-            nearestSafePlaces = nearestSafePlaces,
-            isLoudAlarmActive = isLoudAlarmActive,
-            onToggleLoudAlarm = onToggleLoudAlarm,
-            isRecordingActive = isRecordingActive,
-            recordingDuration = recordingDuration,
-            onToggleRecording = onToggleRecording,
-            isFakeCallActive = isFakeCallActive,
-            onToggleFakeCall = onToggleFakeCall,
-            isBreathingActive = isBreathingActive,
-            onToggleBreathing = onToggleBreathing,
-            onNavigateToPlace = onNavigateToPlace,
-            onRequestPolice = onRequestPolice,
-            showPoliceConfirmation = showPoliceConfirmation,
-            onPoliceConfirmation = onPoliceConfirmation
+    val showStealthDecoy by viewModel.showStealthDecoy.collectAsState()
+
+    if (showStealthDecoy) {
+        Fake404ErrorScreenWithInfoIcon(
+            viewModel = viewModel,
+            isStealthMode = true,
+            autoCamouflage = false,
+            onSosButtonClick = { viewModel.triggerEmergencyAlarm() },
+            onScreenTap = { viewModel.registerUserInteraction() }
         )
-        return
-    }
+    } else {
+        if (emergencyPath == EmergencyPath.THREAT_NEARBY && currentQuestion == null && secondQuestion == null) {
+            ThreatNearbyScreen(
+                viewModel = viewModel,
+                statusMessage = statusMessage,
+                alertHistory = alertHistory,
+                nearestSafePlaces = nearestSafePlaces,
+                isLoudAlarmActive = isLoudAlarmActive,
+                onToggleLoudAlarm = onToggleLoudAlarm,
+                isRecordingActive = isRecordingActive,
+                recordingDuration = recordingDuration,
+                onToggleRecording = onToggleRecording,
+                isFakeCallActive = isFakeCallActive,
+                onToggleFakeCall = onToggleFakeCall,
+                isBreathingActive = isBreathingActive,
+                onToggleBreathing = onToggleBreathing,
+                onNavigateToPlace = onNavigateToPlace,
+                onRequestPolice = onRequestPolice,
+                showPoliceConfirmation = showPoliceConfirmation,
+                onPoliceConfirmation = onPoliceConfirmation
+            )
+            return
+        }
 
-    if (emergencyPath == EmergencyPath.ESCAPE_TO_SAFETY && currentQuestion == null && secondQuestion == null) {
-        EscapeToSafetyScreen(
-            statusMessage = statusMessage,
-            nearestSafePlaces = nearestSafePlaces,
-            currentDestination = currentDestination,
-            isLoudAlarmActive = isLoudAlarmActive,
-            onToggleLoudAlarm = onToggleLoudAlarm,
-            isRecordingActive = isRecordingActive,
-            recordingDuration = recordingDuration,
-            onToggleRecording = onToggleRecording,
-            isFakeCallActive = isFakeCallActive,
-            onToggleFakeCall = onToggleFakeCall,
-            isBreathingActive = isBreathingActive,
-            onToggleBreathing = onToggleBreathing,
-            onNavigateToPlace = onNavigateToPlace,
-            showPoliceConfirmation = showPoliceConfirmation,
-            onPoliceConfirmation = onPoliceConfirmation,
-            onRequestPolice = onRequestPolice,
-            alertHistory = alertHistory,
-            showArrivalConfirmation = showArrivalConfirmation,
-            onArrivalConfirmation = onArrivalConfirmation
-        )
-        return
-    }
+        if (emergencyPath == EmergencyPath.ESCAPE_TO_SAFETY && currentQuestion == null && secondQuestion == null) {
+            EscapeToSafetyScreen(
+                viewModel = viewModel,
+                statusMessage = statusMessage,
+                nearestSafePlaces = nearestSafePlaces,
+                currentDestination = currentDestination,
+                isLoudAlarmActive = isLoudAlarmActive,
+                onToggleLoudAlarm = onToggleLoudAlarm,
+                isRecordingActive = isRecordingActive,
+                recordingDuration = recordingDuration,
+                onToggleRecording = onToggleRecording,
+                isFakeCallActive = isFakeCallActive,
+                onToggleFakeCall = onToggleFakeCall,
+                isBreathingActive = isBreathingActive,
+                onToggleBreathing = onToggleBreathing,
+                onNavigateToPlace = onNavigateToPlace,
+                showPoliceConfirmation = showPoliceConfirmation,
+                onPoliceConfirmation = onPoliceConfirmation,
+                onRequestPolice = onRequestPolice,
+                alertHistory = alertHistory,
+                showArrivalConfirmation = showArrivalConfirmation,
+                onArrivalConfirmation = onArrivalConfirmation
+            )
+            return
+        }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Spacer(modifier = Modifier.height(48.dp))
-
-        // Clear status indicator
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFFE3F2FD)
-            ),
-            shape = RoundedCornerShape(16.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                modifier = Modifier.padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+            Spacer(modifier = Modifier.height(48.dp))
+
+            // Clear status indicator
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFE3F2FD)
+                ),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = Color(0xFF2196F3)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = statusMessage,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1976D2),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            when {
+                currentQuestion != null -> {
+                    // Question card - simple and clear
+                    QuestionCard(
+                        question = currentQuestion,
+                        timeRemaining = currentQuestionTimeRemaining,
+                        onAnswerYes = onFirstQuestionYes,
+                        onAnswerNo = onFirstQuestionNo
+                    )
+                }
+
+                secondQuestion != null -> {
+                    // Proximity question card
+                    ProximityQuestionCard(
+                        question = secondQuestion,
+                        timeRemaining = secondQuestionTimeRemaining,
+                        onAnswerYes = onSecondQuestionYes,
+                        onAnswerNo = onSecondQuestionNo
+                    )
+                }
+
+                else -> {
+                    // Monitoring status card (shown after answer or during processing)
+                    MonitoringCard()
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            // Cancel button - smaller, less prominent
+            TextButton(
+                onClick = onCancel,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(
-                    imageVector = Icons.Default.CheckCircle,
+                    Icons.Default.Clear,
                     contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = Color(0xFF2196F3)
+                    modifier = Modifier.size(20.dp),
+                    tint = Color(0xFF757575)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = statusMessage,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1976D2),
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        when {
-            currentQuestion != null -> {
-                // Question card - simple and clear
-                QuestionCard(
-                    question = currentQuestion,
-                    timeRemaining = currentQuestionTimeRemaining,
-                    onAnswerYes = onFirstQuestionYes,
-                    onAnswerNo = onFirstQuestionNo
+                    "False Alarm - Cancel Emergency",
+                    fontSize = 14.sp,
+                    color = Color(0xFF757575)
                 )
             }
 
-            secondQuestion != null -> {
-                // Proximity question card
-                ProximityQuestionCard(
-                    question = secondQuestion,
-                    timeRemaining = secondQuestionTimeRemaining,
-                    onAnswerYes = onSecondQuestionYes,
-                    onAnswerNo = onSecondQuestionNo
-                )
-            }
-
-            else -> {
-                // Monitoring status card (shown after answer or during processing)
-                MonitoringCard()
-            }
+            Spacer(modifier = Modifier.height(24.dp))
         }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        // Cancel button - smaller, less prominent
-        TextButton(
-            onClick = onCancel,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(
-                Icons.Default.Clear,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = Color(0xFF757575)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                "False Alarm - Cancel Emergency",
-                fontSize = 14.sp,
-                color = Color(0xFF757575)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 @Composable
 private fun ThreatNearbyScreen(
+    viewModel: SafetyViewModel,
     statusMessage: String,
     alertHistory: List<AlertRecord>,
     nearestSafePlaces: List<SafePlace>,
@@ -1083,6 +1283,7 @@ private fun ThreatNearbyScreen(
     onPoliceConfirmation: (Boolean) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    val showDecoyAvailable by viewModel.showDecoyAvailable.collectAsState()
     var safeSectionExpanded by rememberSaveable { mutableStateOf(false) }
     val recordingMinutes = recordingDuration / 60
     val recordingSeconds = recordingDuration % 60
@@ -1096,6 +1297,31 @@ private fun ThreatNearbyScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(16.dp))
+        if (showDecoyAvailable) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = 16.dp, top = 16.dp),
+                contentAlignment = Alignment.TopEnd
+            ) {
+                IconButton(
+                    onClick = { viewModel.switchToDecoy() },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(
+                            Color.White.copy(alpha = 0.8f),
+                            CircleShape
+                        )
+                ) {
+                    Icon(
+                        Icons.Filled.Info,
+                        contentDescription = "Hide to home screen (decoy)",
+                        tint = Color(0xFF757575),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
         Text(
             text = "CRITICAL - THREAT NEARBY",
             fontSize = 24.sp,
@@ -1465,7 +1691,7 @@ private fun SafePlaceRow(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val icon = when (place.type.lowercase()) {
+                val icon = when (place.types.firstOrNull()?.lowercase()) {
                     "police" -> Icons.Default.LocalPolice
                     "hospital" -> Icons.Default.LocalHospital
                     "fire" -> Icons.Default.LocalFireDepartment
@@ -1481,10 +1707,6 @@ private fun SafePlaceRow(
                             place.distance?.let {
                                 append("${it.toInt()} m")
                             }
-                            place.walkingTimeMinutes?.let {
-                                if (isNotEmpty()) append(" · ")
-                                append("~${it} min walk")
-                            }
                         },
                         color = Color(0xFF616161),
                         fontSize = 13.sp
@@ -1495,21 +1717,6 @@ private fun SafePlaceRow(
                     colors = ButtonDefaults.buttonColors(containerColor = AmberYellowDark)
                 ) {
                     Text(buttonLabel, color = Color.White)
-                }
-            }
-            place.address.takeIf { it.isNotBlank() }?.let { address ->
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(address, color = Color(0xFF757575), fontSize = 12.sp)
-            }
-            if (expanded) {
-                // Show more details for Path B
-                place.hours?.takeIf { it.isNotBlank() }?.let { hours ->
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Hours: $hours", color = Color(0xFF8D6E63), fontSize = 11.sp)
-                }
-                place.notes?.takeIf { it.isNotBlank() }?.let { notes ->
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Info: $notes", color = Color(0xFF8D6E63), fontSize = 11.sp, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
                 }
             }
         }
@@ -2406,7 +2613,7 @@ fun FakeCallOverlay(
                         text = "incoming call...",
                         fontSize = 16.sp,
                         color = Color.White.copy(alpha = 0.8f),
-                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        fontStyle = FontStyle.Italic
                     )
                 }
             }

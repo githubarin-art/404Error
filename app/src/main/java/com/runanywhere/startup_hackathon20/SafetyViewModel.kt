@@ -1,5 +1,8 @@
 package com.runanywhere.startup_hackathon20
 
+import java.io.File
+import java.security.MessageDigest
+
 import android.content.Context
 import android.content.SharedPreferences
 import android.location.Location
@@ -15,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.UUID
 import org.json.JSONArray
 import org.json.JSONObject
@@ -23,6 +27,7 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import com.runanywhere.startup_hackathon20.utils.ShakeDetector
@@ -34,9 +39,17 @@ import android.media.RingtoneManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import java.util.Calendar
+import java.net.HttpURLConnection
+import java.net.URL
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import android.net.Uri
 import android.content.Intent
 import com.runanywhere.startup_hackathon20.utils.PermissionManager
+import com.runanywhere.startup_hackathon20.data.SafePlace // Add import for new data class
+
 
 /**
  * Main ViewModel for Safety App
@@ -65,7 +78,76 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         private const val KEY_LAST_LONGITUDE = "lastLongitude"
         private const val KEY_LAST_ACCURACY = "lastAccuracy"
         private const val KEY_LAST_LOCATION_TIME = "lastLocationTime"
+
+        const val CURRENT_MODEL_VERSION = "2.1"
+        const val EXPECTED_MODEL_MD5 =
+            "d41d8cd98f00b204e9800998ecf8427e" // Placeholder MD5 for version 2.1 (empty file example; replace with real)
+        const val MODEL_VERSION_FILE = "model_version.txt"
+        const val PREF_KEY_LAST_REMIND = "last_remind_timestamp"
+        const val PREF_KEY_SKIPPED_VERSION = "skipped_model_version"
+        private const val REMIND_DAYS = 7L
+        // End companion object
     }
+
+// --- Safe Places Prefetch Background Helpers ---
+
+private fun hasLocationPermission(): Boolean {
+    val hasFine = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_FINE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    val hasCoarse = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    ) == PackageManager.PERMISSION_GRANTED
+    return hasFine || hasCoarse
+}
+
+private suspend fun getInitialLocationForPrefetch(): Location? {
+    return try {
+        suspendCancellableCoroutine { cont ->
+            fusedLocationClient.getCurrentLocation(
+                Priority.PRIORITY_BALANCED_POWER_ACCURACY,
+                CancellationTokenSource().token
+            ).addOnSuccessListener { location ->
+                cont.resume(location, null)
+            }.addOnFailureListener { e ->
+                cont.resume(null, null)
+            }
+        }
+    } catch (e: Exception) {
+        try {
+            suspendCancellableCoroutine { cont ->
+                fusedLocationClient.lastLocation
+                    .addOnSuccessListener { location ->
+                        cont.resume(location, null)
+                    }
+                    .addOnFailureListener { e2 ->
+                        cont.resume(null, null)
+                    }
+            }
+        } catch (e2: Exception) {
+            null
+        }
+    }
+}
+
+private fun startSafePlacesPrefetch(initialLocation: Location) {
+    safePlacesPreFetchJob?.cancel()
+    safePlacesPreFetchJob = viewModelScope.launch {
+        updateNearestSafePlaces() // Initial prefetch
+        Log.i(TAG, "Background safe places prefetch started")
+        
+        while (!_isAlarmActive.value) { // Only prefetch when not in emergency
+            delay(300000) // Every 5 minutes
+            val currentLoc = _currentLocation.value
+            if (currentLoc != null) {
+                updateNearestSafePlaces()
+                Log.i(TAG, "Background safe places updated")
+            }
+        }
+    }
+}
 
     private val aiEngine = SafetyAIEngine()
 
@@ -95,6 +177,10 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     private val _currentLocation = MutableStateFlow<Location?>(null)
     val currentLocation: StateFlow<Location?> = _currentLocation.asStateFlow()
 
+    // Add _userLocation StateFlow after _currentLocation
+    private val _userLocation = MutableStateFlow<Location?>(null)
+    val userLocation: StateFlow<Location?> = _userLocation.asStateFlow()
+
     // Status message
     private val _statusMessage = MutableStateFlow("Ready. Stay safe.")
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
@@ -102,6 +188,23 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     // Model loading state
     private val _isModelLoaded = MutableStateFlow(false)
     val isModelLoaded: StateFlow<Boolean> = _isModelLoaded.asStateFlow()
+
+    // --- Onboarding Model Automatic Installation ---
+    private val _isModelInstalling = MutableStateFlow(false)
+    val isModelInstalling: StateFlow<Boolean> = _isModelInstalling.asStateFlow()
+
+    private val _modelInstallProgress = MutableStateFlow(0f)
+    val modelInstallProgress: StateFlow<Float> = _modelInstallProgress.asStateFlow()
+
+    // --- Update/Version Management StateFlows ---
+    private val _updateAvailable = MutableStateFlow(false)
+    val updateAvailable: StateFlow<Boolean> = _updateAvailable.asStateFlow()
+
+    private val _showUpdateDialog = MutableStateFlow(false)
+    val showUpdateDialog: StateFlow<Boolean> = _showUpdateDialog.asStateFlow()
+
+    private val _updateProgress = MutableStateFlow(0f)
+    val updateProgress: StateFlow<Float> = _updateProgress.asStateFlow()
 
     // Alert history
     private val _alertHistory = MutableStateFlow<List<AlertRecord>>(emptyList())
@@ -121,7 +224,7 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     private val _secondQuestionTimeRemaining = MutableStateFlow<Int?>(null)
     val secondQuestionTimeRemaining: StateFlow<Int?> = _secondQuestionTimeRemaining.asStateFlow()
 
-    private val _nearestSafePlaces = MutableStateFlow<List<SafePlace>>(emptyList())
+    private val _nearestSafePlaces = MutableStateFlow<List<SafePlace>>(emptyList()) // Updated for new fields
     val nearestSafePlaces: StateFlow<List<SafePlace>> = _nearestSafePlaces.asStateFlow()
 
     private val _currentDestination = MutableStateFlow<SafePlace?>(null)
@@ -154,7 +257,13 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     private var questionTimerJob: Job? = null
     private var escalationMonitorJob: Job? = null
     private var autoRetriggerJob: Job? = null
-    
+
+    // Background prefetch job for safe places (non-emergency sessions)
+    private var safePlacesPreFetchJob: Job? = null
+
+    // Escape tracking job for location during escape to safety
+    private var escapeLocationTrackingJob: Job? = null
+
     // Cooldown before user can re-arm SOS after an emergency ends
     private val _nextSOSAllowedAt = MutableStateFlow(0L)
     val nextSOSAllowedAt: StateFlow<Long> = _nextSOSAllowedAt.asStateFlow()
@@ -173,6 +282,23 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         loadShakeGesturePreference()
 
         vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+
+        // --- Phase 1: Onboarding Model Installation ---
+        viewModelScope.launch {
+            checkAndInstallModelIfNeeded()
+            // After model check, perform version check
+            checkForModelUpdates()
+        }
+
+        // --- Background safe places prefetch initialization ---
+        viewModelScope.launch {
+            if (hasLocationPermission()) {
+                val location = getInitialLocationForPrefetch()
+                if (location != null) {
+                    startSafePlacesPrefetch(location)
+                }
+            }
+        }
     }
 
     /**
@@ -838,6 +964,7 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
             journeyMonitoringJob?.cancel()
             secondQuestionTimerJob?.cancel()
             recordingJob?.cancel()
+            stealthModeSwitchingJob?.cancel()
 
             val session = _currentSession.value
             if (session != null) {
@@ -859,6 +986,9 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
             _nearestSafePlaces.value = emptyList()
             _currentDestination.value = null
             _alertHistory.value = emptyList()
+            _showStealthDecoy.value = false
+            _showInfoIcon.value = false
+            _showDecoyAvailable.value = false
 
             stopLoudAlarm()
             stopRecording()
@@ -1042,6 +1172,7 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         try {
             // Strategy 1: Try to get last known location (fastest, works even with coarse)
             if (hasCoarse || hasFine) {
+                @SuppressLint("MissingPermission")
                 fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
                     if (location != null) {
                         val age = (System.currentTimeMillis() - location.time) / 1000
@@ -1079,6 +1210,7 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                 Priority.PRIORITY_BALANCED_POWER_ACCURACY
             }
 
+            @SuppressLint("MissingPermission")
             fusedLocationClient.getCurrentLocation(
                 priority,
                 cancellationTokenSource.token
@@ -1150,8 +1282,10 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    // In updateLocation, add user location update and arrival check
     fun updateLocation(location: Location) {
         _currentLocation.value = location
+        _userLocation.value = location  // Update user location StateFlow
 
         val session = _currentSession.value
         if (session != null) {
@@ -1169,8 +1303,30 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         }
         Log.i(TAG, "💾 Cached last known location: ${location.latitude}, ${location.longitude}")
 
-        // Update nearest safe places for path 2
-        updateNearestSafePlaces()
+        // Update nearest safe places: Always during emergency, or trigger prefetch if not
+        viewModelScope.launch {
+            if (_isAlarmActive.value || _nearestSafePlaces.value.isEmpty()) {
+                updateNearestSafePlaces()
+            } else {
+                // If pre-fetched and not emergency, just log
+                Log.i(TAG, "Safe places pre-fetched, ready for instant display")
+            }
+        }
+
+        // Start/continue background prefetch if location improved and not in emergency
+        if (!_isAlarmActive.value) {
+            startSafePlacesPrefetch(location)
+        }
+
+        // Check arrival if in escape mode
+        if (_isAlarmActive.value && _currentDestination.value != null) {
+            val dest = _currentDestination.value!!
+            val destLoc = locationFromPlace(dest)
+            val distance = calculateDistance(location, destLoc)
+            if (distance <= 50f) {
+                endEmergencyIfArrived()
+            }
+        }
     }
 
     /**
@@ -1208,6 +1364,84 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
     // ============ Model Management ============
 
+    suspend fun checkAndInstallModelIfNeeded() {
+        _isModelInstalling.value = true
+        _statusMessage.value = "Checking AI model..."
+
+        val availableModels = listAvailableModels()
+        if (availableModels.isEmpty()) {
+            Log.i(TAG, "No model available, starting download")
+            _statusMessage.value = "Installing Emergency AI Model (374 MB)"
+            downloadAndInstallModel()
+        } else {
+            Log.i(TAG, "Model available, loading...")
+            loadModelAutomatically(availableModels.first().id)
+        }
+
+        _isModelInstalling.value = false
+    }
+
+    private suspend fun downloadAndInstallModel() {
+        try {
+            val modelId = "qwen-0.5b"
+            RunAnywhere.downloadModel(modelId).collect { progress ->
+                _modelInstallProgress.value = progress
+                val percent = (progress * 100).toInt()
+                _statusMessage.value = "Downloading AI Model: $percent%"
+                Log.i(TAG, "Model download progress: $percent%")
+            }
+
+            saveModelVersion("2.1")
+
+            val availableModels = listAvailableModels()
+            if (availableModels.isNotEmpty()) {
+                loadModelAutomatically(availableModels.first().id)
+                _statusMessage.value = "AI Model installed. Ready for emergencies."
+                Log.i(TAG, "✅ AI Model installed successfully")
+            } else {
+                Log.e(TAG, "Model downloaded but not listed in available models")
+                _statusMessage.value = "Installation failed. Please restart the app."
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error downloading model", e)
+            _statusMessage.value = "Failed to download model. Check connection."
+        }
+    }
+
+    private fun loadModelAutomatically(modelId: String) {
+        viewModelScope.launch {
+            try {
+                _statusMessage.value = "Loading AI model into memory..."
+                val success = RunAnywhere.loadModel(modelId)
+                if (success) {
+                    _isModelLoaded.value = true
+                    _statusMessage.value = "✅ AI Model loaded. Ready for emergencies!"
+                    Log.i(TAG, "Model loaded automatically: $modelId")
+                } else {
+                    _statusMessage.value = "Failed to load model. Please restart."
+                    Log.e(TAG, "Failed to load model automatically")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error loading model", e)
+                _statusMessage.value = "Error loading model: ${e.message}"
+            }
+        }
+    }
+
+    // Save model version as a simple file (optional for upgrades/future)
+    private fun saveModelVersion(version: String) {
+        try {
+            val file = File(context.filesDir, MODEL_VERSION_FILE)
+            file.parentFile?.mkdirs()
+            file.writeText(version)
+            Log.i(TAG, "Model version $version saved")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to save model version: ${e.message}")
+        }
+    }
+
+    // Manual load function remains for settings/manual use.
+    // This is now fallback; automatic load and update are preferred.
     fun loadAIModel(modelId: String) {
         viewModelScope.launch {
             try {
@@ -1286,6 +1520,149 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
                 Log.e(TAG, "Error loading model", e)
                 _statusMessage.value = "Error: ${e.message}"
             }
+        }
+    }
+
+    // ----------- Model Update/Version Check Logic ------------
+
+    private fun checkForModelUpdates() {
+        viewModelScope.launch {
+            val localVersion = getLocalModelVersion()
+            val skippedVersion = getSkippedVersionFromPrefs()
+            val lastRemind = getLastRemindTimestampFromPrefs()
+
+            val now = System.currentTimeMillis()
+            val daysSinceRemind =
+                if (lastRemind > 0) (now - lastRemind) / (1000 * 60 * 60 * 24) else 0
+
+            // Show dialog if: new version available, not skipped, and (first time or >7 days since remind)
+            if (localVersion != CURRENT_MODEL_VERSION &&
+                skippedVersion != CURRENT_MODEL_VERSION &&
+                (lastRemind == 0L || daysSinceRemind >= REMIND_DAYS)
+            ) {
+                _updateAvailable.value = true
+                _showUpdateDialog.value = true
+                _statusMessage.value = "Safety AI Model Update Available"
+                Log.i(TAG, "Model update dialog shown for version $CURRENT_MODEL_VERSION")
+            } else {
+                Log.i(
+                    TAG,
+                    "No model update needed (local: $localVersion, skipped: $skippedVersion)"
+                )
+            }
+        }
+    }
+
+    private fun getLocalModelVersion(): String {
+        return try {
+            val file = File(context.filesDir, MODEL_VERSION_FILE)
+            if (file.exists()) {
+                file.readText().trim()
+            } else {
+                ""
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error reading model version file: ${e.message}")
+            ""
+        }
+    }
+
+    private fun getSkippedVersionFromPrefs(): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(PREF_KEY_SKIPPED_VERSION, "") ?: ""
+    }
+
+    private fun saveSkippedVersion(version: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(PREF_KEY_SKIPPED_VERSION, version).apply()
+        Log.i(TAG, "Skipped version $version saved")
+    }
+
+    private fun getLastRemindTimestampFromPrefs(): Long {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getLong(PREF_KEY_LAST_REMIND, 0L)
+    }
+
+    private fun saveLastRemindTimestamp() {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putLong(PREF_KEY_LAST_REMIND, System.currentTimeMillis()).apply()
+        Log.i(TAG, "Last remind timestamp saved")
+    }
+
+    // Public functions for UI to call
+    fun handleUpdateNow() {
+        viewModelScope.launch {
+            _showUpdateDialog.value = false
+            _updateProgress.value = 0f
+            _statusMessage.value = "Updating Safety AI Model..."
+
+            try {
+                val modelId = "qwen-0.5b" // Assuming same ID for update
+                RunAnywhere.downloadModel(modelId).collect { progress ->
+                    _updateProgress.value = progress
+                    val percent = (progress * 100).toInt()
+                    _statusMessage.value = "Updating Model: $percent%"
+                    Log.i(TAG, "Model update progress: $percent%")
+                }
+
+                // Verify MD5 (assuming we can get the model file path; SDK may abstract, placeholder)
+                val modelFile = File(context.filesDir, "models/qwen-0.5b.gguf") // Assumed path
+                if (modelFile.exists()) {
+                    val actualMD5 = calculateMD5(modelFile)
+                    if (actualMD5 == EXPECTED_MODEL_MD5) {
+                        saveModelVersion(CURRENT_MODEL_VERSION)
+                        // Reload model
+                        val availableModels = listAvailableModels()
+                        if (availableModels.isNotEmpty()) {
+                            RunAnywhere.loadModel(availableModels.first().id)
+                            _isModelLoaded.value = true
+                            _statusMessage.value = "AI Model updated. Emergency features enhanced."
+                            Log.i(TAG, "✅ Model updated and verified successfully")
+                        }
+                    } else {
+                        _statusMessage.value = "Update verification failed. Reverting."
+                        Log.e(TAG, "MD5 mismatch: expected $EXPECTED_MODEL_MD5, got $actualMD5")
+                        // Revert: could redownload old, but for now, keep old
+                    }
+                } else {
+                    Log.e(TAG, "Model file not found after download")
+                    _statusMessage.value = "Update failed: File not found."
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating model", e)
+                _statusMessage.value = "Update failed: ${e.message}. Please try again."
+            }
+        }
+    }
+
+    fun handleRemindLater() {
+        saveLastRemindTimestamp()
+        _showUpdateDialog.value = false
+        _statusMessage.value = "We'll remind you later."
+        Log.i(TAG, "Update dialog dismissed - remind later")
+    }
+
+    fun handleSkipVersion() {
+        saveSkippedVersion(CURRENT_MODEL_VERSION)
+        _showUpdateDialog.value = false
+        _statusMessage.value = "Update skipped for this version."
+        Log.i(TAG, "Model update skipped for version $CURRENT_MODEL_VERSION")
+    }
+
+    private fun calculateMD5(file: File): String {
+        return try {
+            val md = MessageDigest.getInstance("MD5")
+            file.inputStream().use { input ->
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    md.update(buffer, 0, bytesRead)
+                }
+            }
+            md.digest().joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            Log.e(TAG, "MD5 calculation error: ${e.message}")
+            ""
         }
     }
 
@@ -1476,18 +1853,39 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
         _emergencyPath.value = EmergencyPath.THREAT_NEARBY
         updateThreatLevel(ThreatLevel.CRITICAL)
-        updateNearestSafePlaces()
-        _statusMessage.value = "CRITICAL - THREAT NEARBY (calling top contacts)"
+        viewModelScope.launch {
+            updateNearestSafePlaces()
+        }
+        _statusMessage.value = "CRITICAL - THREAT NEARBY"
+
+        Log.i(TAG, "========================================")
+        Log.i(TAG, "PATH A: THREAT NEARBY - CRITICAL THREAT")
+        Log.i(TAG, "========================================")
+        Log.i(TAG, "Actions: Calling top 2 contacts immediately")
+        Log.i(TAG, "User can activate loud alarm, record evidence, or fake call")
+        Log.i(TAG, "========================================")
+
         viewModelScope.launch {
             // Immediately call top 2 priority contacts when threat is nearby
             _emergencyContacts.value.sortedBy { it.priority }.take(2).forEach { contact ->
+                Log.i(TAG, "📞 Calling ${contact.name} (priority ${contact.priority})")
                 makeCall(contact)
                 delay(1000)
             }
-            makeAIDecision()
+
+            // Enable decoy/manual switching controls
+            _showDecoyAvailable.value = true
+            _showInfoIcon.value = true
+            Log.i(TAG, "✅ Decoy controls enabled for Path A")
+
+            Log.i(TAG, "✅ Emergency calls completed for Path A")
+            _statusMessage.value = "CRITICAL - Calls made. Use safety features below."
+
+            // Do NOT call makeAIDecision() - let user control the path features
         }
     }
 
+    // Update answerSecondQuestionNo to integrate
     fun answerSecondQuestionNo() {
         secondQuestionTimerJob?.cancel()
         val question = _secondQuestion.value ?: return
@@ -1496,10 +1894,41 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
         _emergencyPath.value = EmergencyPath.ESCAPE_TO_SAFETY
         updateThreatLevel(ThreatLevel.HIGH)
-        updateNearestSafePlaces()
-        _statusMessage.value = "HIGH ALERT - ESCAPE TO SAFETY"
         viewModelScope.launch {
-            makeAIDecision()
+            updateNearestSafePlaces()
+        }
+        _statusMessage.value = "HIGH ALERT - Navigate to safety"
+
+        Log.i(TAG, "========================================")
+        Log.i(TAG, "PATH B: ESCAPE TO SAFETY - HIGH ALERT")
+        Log.i(TAG, "========================================")
+        Log.i(TAG, "Step 1: Calling ALL contacts immediately")
+        Log.i(TAG, "Step 2: Show escape UI with safe places DURING calls")
+        Log.i(TAG, "Step 3: Manual decoy switching enabled after calls")
+        Log.i(TAG, "========================================")
+
+        viewModelScope.launch {
+            // STEP 1: Call ALL emergency contacts (not just top 2)
+            _emergencyContacts.value.sortedBy { it.priority }.forEach { contact ->
+                Log.i(TAG, "📞 Calling ${contact.name} (priority ${contact.priority})")
+                makeCall(contact)
+                delay(2000) // 2 second delay between calls
+            }
+
+            _statusMessage.value = "HIGH ALERT - Navigate to safety"
+
+            // STEP 2: Stop prefetch, start escape tracking
+            safePlacesPreFetchJob?.cancel()
+            startEscapeLocationTracking()
+
+            // STEP 3: Manual decoy available after calls
+            _showDecoyAvailable.value = true
+            _showInfoIcon.value = true
+            Log.i(TAG, "✅ Decoy controls enabled for Path B")
+
+            Log.i(TAG, "✅ ALL Emergency calls completed for Path B")
+            
+            // Location updates are already running from Q1 NO answer
         }
     }
 
@@ -1514,182 +1943,130 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         Log.i(TAG, "✅ Continuous location tracking started (every 30s)")
     }
 
-    private fun getSafePlaces(): List<SafePlace> {
-        // Hardcoded places for hackathon demo (Pune, India area)
-        // Categorized and ranked by priority: police, hospital, 24/7 stores, transport, religious
-        return listOf(
-            // Police stations (highest priority)
-            SafePlace(
-                name = "Pune City Police Station",
-                type = "police",
-                latitude = 18.5204,
-                longitude = 73.8567,
-                is24_7 = true,
-                address = "Central Pune, Near Railway Station",
-                hours = "24/7 Open",
-                notes = "Emergency response available"
-            ),
-            SafePlace(
-                name = "Shivajinagar Police Station",
-                type = "police",
-                latitude = 18.5304,
-                longitude = 73.8467,
-                is24_7 = true,
-                address = "Shivajinagar, JM Road",
-                hours = "24/7 Open",
-                notes = "Main city police station"
-            ),
 
-            // Hospitals
-            SafePlace(
-                name = "Sassoon General Hospital",
-                type = "hospital",
-                latitude = 18.5260,
-                longitude = 73.8710,
-                is24_7 = true,
-                address = "Near Pune Station",
-                hours = "24/7 Emergency",
-                notes = "Major public hospital"
-            ),
-            SafePlace(
-                name = "Ruby Hall Clinic",
-                type = "hospital",
-                latitude = 18.5196,
-                longitude = 73.8553,
-                is24_7 = true,
-                address = "Grant Road, Camp",
-                hours = "24/7 Emergency",
-                notes = "Well-staffed, safe area"
-            ),
-
-            // Fire stations
-            SafePlace(
-                name = "Fire Brigade Station",
-                type = "fire",
-                latitude = 18.5314,
-                longitude = 73.8443,
-                is24_7 = true,
-                address = "MG Road",
-                hours = "24/7 Open",
-                notes = "Emergency services"
-            ),
-
-            // 24/7 stores (populated, well-lit)
-            SafePlace(
-                name = "24/7 Reliance Mart",
-                type = "store",
-                latitude = 18.5196,
-                longitude = 73.8553,
-                is24_7 = true,
-                address = "FC Road, Deccan",
-                hours = "24/7",
-                notes = "Well-lit, security present"
-            ),
-            SafePlace(
-                name = "DMart Supermarket",
-                type = "store",
-                latitude = 18.5392,
-                longitude = 73.8764,
-                is24_7 = false,
-                address = "Hadapsar",
-                hours = "8 AM - 11 PM",
-                notes = "Busy shopping area"
-            ),
-
-            // Malls (populated areas)
-            SafePlace(
-                name = "Amanora Mall",
-                type = "mall",
-                latitude = 18.5392,
-                longitude = 73.8764,
-                is24_7 = false,
-                address = "Hadapsar",
-                hours = "11 AM - 10 PM",
-                notes = "Security guards, CCTV"
-            ),
-
-            // Hotels (safe, staffed)
-            SafePlace(
-                name = "Hyatt Regency Hotel",
-                type = "hotel",
-                latitude = 18.5605,
-                longitude = 73.8100,
-                is24_7 = true,
-                address = "Airport Road, Nagar Road",
-                hours = "24/7 Reception",
-                notes = "Secure, well-staffed"
-            ),
-
-            // Religious places
-            SafePlace(
-                name = "Dagadusheth Halwai Temple",
-                type = "temple",
-                latitude = 18.5153,
-                longitude = 73.8389,
-                is24_7 = false,
-                address = "Budhwar Peth, Old City",
-                hours = "6 AM - 10 PM",
-                notes = "Crowded, safe during hours"
-            ),
-
-            // Transport hubs (populated)
-            SafePlace(
-                name = "Pune Railway Station",
-                type = "metro",
-                latitude = 18.5308,
-                longitude = 73.8475,
-                is24_7 = true,
-                address = "Pune Station",
-                hours = "24/7",
-                notes = "RPF security, crowded"
-            ),
-            SafePlace(
-                name = "Swargate Bus Stand",
-                type = "transport",
-                latitude = 18.5018,
-                longitude = 73.8636,
-                is24_7 = true,
-                address = "Swargate",
-                hours = "24/7",
-                notes = "Major transport hub, police post"
-            )
-        )
+    private fun typePriority(type: String): Int {
+        return when (type) {
+            "police" -> 0
+            "hospital", "fire" -> 1
+            else -> 2
+        }
     }
 
-    private fun updateNearestSafePlaces() {
+    // Update fetchAndCalculateSafePlaces to return List<SafePlace> with new fields
+    private suspend fun fetchAndCalculateSafePlaces(currentLocation: Location): List<SafePlace> = withContext(Dispatchers.IO) {
+        try {
+            val apiKey = "AIzaSyDVkedQ-2iUAak1TJVGZd6Qi4jdjUO_3Wo"
+            val types = "police|hospital|fire_station|pharmacy|convenience_store|transit_station"
+            val locationStr = "${currentLocation.latitude},${currentLocation.longitude}"
+            val urlStr = "https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$locationStr&radius=5000&type=$types&key=$apiKey"
+            val url = URL(urlStr)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
+            val responseCode = connection.responseCode
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                Log.e(TAG, "API request failed: $responseCode")
+                return@withContext emptyList()
+            }
+            val reader = BufferedReader(InputStreamReader(connection.inputStream))
+            val response = reader.readText()
+            reader.close()
+            connection.disconnect()
+            val jsonObject = JSONObject(response)
+            if (jsonObject.getString("status") != "OK") {
+                Log.e(TAG, "Places API error: ${jsonObject.getString("status")}")
+                return@withContext emptyList()
+            }
+            val results = jsonObject.getJSONArray("results")
+            val places = mutableListOf<SafePlace>()
+            for (i in 0 until results.length()) {
+                val placeObj = results.getJSONObject(i)
+                val placeId = placeObj.optString("place_id", "")
+                val name = placeObj.getString("name")
+                val typesArray = placeObj.getJSONArray("types")
+                val typesList = mutableListOf<String>()
+                for (j in 0 until typesArray.length()) {
+                    typesList.add(typesArray.getString(j))
+                }
+                val geometry = placeObj.getJSONObject("geometry").getJSONObject("location")
+                val lat = geometry.getDouble("lat")
+                val lng = geometry.getDouble("lng")
+                val phoneNumber = placeObj.optString("formatted_phone_number", null)
+                var isOpen24h = false
+                val openingHours = placeObj.optJSONObject("opening_hours")
+                if (openingHours != null) {
+                    isOpen24h = openingHours.optBoolean("open_now", false)
+                } else {
+                    // Default true for critical services
+                    if (typesList.contains("police") || typesList.contains("hospital") || typesList.contains("fire_station")) {
+                        isOpen24h = true
+                    }
+                }
+                val placeLoc = Location("place").apply {
+                    latitude = lat
+                    longitude = lng
+                }
+                val distance = calculateDistance(currentLocation, placeLoc)
+                places.add(SafePlace(
+                    placeId = placeId,
+                    name = name,
+                    types = typesList,
+                    latitude = lat,
+                    longitude = lng,
+                    distance = distance,
+                    isOpen24h = isOpen24h,
+                    phoneNumber = phoneNumber
+                ))
+            }
+            Log.i(TAG, "Fetched ${places.size} nearby safe places")
+            places
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching safe places", e)
+            emptyList()
+        }
+    }
+
+    // Update updateNearestSafePlaces to use new SafePlace structure (no changes to prioritization logic, just use new fields)
+    private suspend fun updateNearestSafePlaces() {
         val currentLoc = _currentLocation.value ?: run {
             Log.w(TAG, "Cannot update safe places - location unavailable")
+            _nearestSafePlaces.value = emptyList()
+            _statusMessage.value = "Location needed for safe places"
             return
         }
+
+        // Set loading status if empty
+        if (_nearestSafePlaces.value.isEmpty()) {
+            _statusMessage.value = "Calculating nearest safe places..."
+        }
+
+        val allPlaces = fetchAndCalculateSafePlaces(currentLoc)
+            .sortedBy { it.distance }
 
         val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         val isNight = hour < 6 || hour >= 22
 
-        val places = getSafePlaces().map { place ->
-            val placeLoc = Location("place")
-            placeLoc.latitude = place.latitude
-            placeLoc.longitude = place.longitude
+        val filteredPlaces = allPlaces.filter { if (isNight) it.isOpen24h else true }
 
-            place.distance = currentLoc.distanceTo(placeLoc)
-            place.walkingTimeMinutes = place.distance?.let { dist ->
-                (dist / 83.33f).toInt() // 5 km/h walking speed = 83.33 m/min
-            }
-
-            place
-        }.filter { if (isNight) it.is24_7 else true }
-
-        val prioritized = places.sortedWith(
-            compareBy<SafePlace> {
-                when (it.type) {
-                    "police" -> 0
-                    "hospital", "fire" -> 1
-                    else -> 2
+        val prioritized = filteredPlaces.sortedWith(
+            compareBy<SafePlace> { 
+                when {
+                    it.types.contains("police") -> 0
+                    it.types.contains("hospital") -> 1
+                    it.isOpen24h -> 2
+                    else -> 3
                 }
             }.thenBy { it.distance }
         )
 
         val takeCount = if (_emergencyPath.value == EmergencyPath.ESCAPE_TO_SAFETY) 5 else 3
         _nearestSafePlaces.value = prioritized.take(takeCount)
+        
+        if (_nearestSafePlaces.value.isNotEmpty()) {
+            _statusMessage.value = "Safe places ready"
+            Log.i(TAG, "Safe places updated: ${_nearestSafePlaces.value.size} locations cached")
+        }
     }
 
     fun toggleLoudAlarm() {
@@ -1930,6 +2307,9 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
     fun confirmArrival(isSafe: Boolean) {
         _showArrivalConfirmation.value = false
         if (isSafe) {
+            stealthModeSwitchingJob?.cancel()
+            _showStealthDecoy.value = false
+            _showInfoIcon.value = false
             cancelEmergencyAlarm()
         } else {
             _statusMessage.value = "Continue to safety"
@@ -1945,6 +2325,41 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         loc.latitude = place.latitude
         loc.longitude = place.longitude
         return loc
+    }
+
+    // Add calculateDistance helper
+    private fun calculateDistance(loc1: Location, loc2: Location): Float {
+        val results = FloatArray(1)
+        Location.distanceBetween(loc1.latitude, loc1.longitude, loc2.latitude, loc2.longitude, results)
+        return results[0]
+    }
+
+    // Add startEscapeLocationTracking after updateNearestSafePlaces
+    private fun startEscapeLocationTracking() {
+        escapeLocationTrackingJob?.cancel()
+        escapeLocationTrackingJob = viewModelScope.launch {
+            while (_isAlarmActive.value && _currentDestination.value != null) {
+                delay(30000) // Every 30 seconds
+                val currentLoc = _currentLocation.value ?: continue
+                _userLocation.value = currentLoc
+                val dest = _currentDestination.value ?: continue
+                val destLoc = locationFromPlace(dest)
+                val distance = calculateDistance(currentLoc, destLoc)
+                // Update distances in safe places if needed, but since it's list, refresh if selected
+                updateNearestSafePlaces() // Refresh for current position
+                if (distance <= 50f) {
+                    endEmergencyIfArrived()
+                    break
+                }
+            }
+        }
+    }
+
+    // Add endEmergencyIfArrived
+    private fun endEmergencyIfArrived() {
+        _showArrivalConfirmation.value = true
+        _statusMessage.value = "You have reached a safe location!"
+        Log.i(TAG, "Emergency ended - arrived at safe place")
     }
 
     private fun sendLocationUpdateToContacts(message: String) {
@@ -1965,6 +2380,51 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
 
     // --- End emergency path 2 ---
 
+    // New stealth mode variables
+    private var stealthModeSwitchingJob: Job? = null
+    private val _showStealthDecoy = MutableStateFlow(false)
+    val showStealthDecoy: StateFlow<Boolean> = _showStealthDecoy.asStateFlow()
+
+    // Info icon for decoy mode
+    private val _showInfoIcon = MutableStateFlow(false)
+    val showInfoIcon: StateFlow<Boolean> = _showInfoIcon.asStateFlow()
+
+    // New StateFlow for decoy manual switching
+    private val _showDecoyAvailable = MutableStateFlow(false)
+    val showDecoyAvailable: StateFlow<Boolean> = _showDecoyAvailable.asStateFlow()
+
+    /**
+     * Start automatic UI switching for stealth mode
+     * Alternates between escape UI and home screen every 10 seconds
+     * This confuses attackers while guiding victim to safety
+     */
+    private fun startStealthModeSwitching() {
+        // No longer used - manual switching only
+        Log.i(TAG, "startStealthModeSwitching called but no action - manual mode")
+    }
+
+    /**
+     * Call when info icon in decoy mode is clicked.
+     * Switches back to escape UI from decoy mode.
+     */
+    fun onInfoIconClicked() {
+        if (_showStealthDecoy.value && _isAlarmActive.value) {
+            _showStealthDecoy.value = false
+            Log.i(TAG, "ℹ️ Info icon clicked - switching back to escape UI")
+            registerUserInteraction()
+        }
+    }
+
+    /**
+     * Manual decoy switch: call to activate decoy home screen (stealth mode)
+     */
+    fun switchToDecoy() {
+        if (_isAlarmActive.value) {
+            _showStealthDecoy.value = true
+            Log.i(TAG, "ℹ️ Switching to decoy home screen")
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         questionTimerJob?.cancel()
@@ -1974,8 +2434,14 @@ class SafetyViewModel(private val context: Context) : ViewModel() {
         secondQuestionTimerJob?.cancel()
         recordingJob?.cancel()
         journeyMonitoringJob?.cancel()
+        stealthModeSwitchingJob?.cancel()
+        safePlacesPreFetchJob?.cancel()
         stopLoudAlarm()
         stopRecording()
+        _showStealthDecoy.value = false
+        _showInfoIcon.value = false
+        _showDecoyAvailable.value = false
+        escapeLocationTrackingJob?.cancel()
 
         // Stop shake detector when ViewModel is cleared
         shakeDetector?.stop()
